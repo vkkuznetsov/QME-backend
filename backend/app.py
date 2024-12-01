@@ -1,20 +1,22 @@
+import logging.config
 from fastapi import FastAPI
-from backend.config import settings
+
 from backend.views.api import API
+from backend.config import settings
 
 
 class App:
-    def __init__(self) -> None:
+
+    def __init__(self):
         self.app = FastAPI()
-        self._init_logger()
-        self._init_api()
+        # self.init_logging()
+        self.connect_api()
 
-    @classmethod
-    def _init_logger(cls) -> None:
-        pass  # пока не понятно как логировать
+    @staticmethod
+    def init_logging():
+        logging.config.dictConfig(settings.LOGGING)
 
-    def _init_api(self) -> None:
-        """Подключение API."""
+    def connect_api(self):
         api = API()
         self.app.include_router(api.router)
 

@@ -7,3 +7,14 @@ default:
   FAST_API_PATH: backend.app:app
   RELOADED: false
   LOG_LEVEL: info
+
+
+  DATABASE:
+    DRIVER: postgresql
+    HOST: localhost
+    PORT: 5732
+    USER: postgres
+    PASSWORD: postgres
+    NAME: qme_back
+
+  LOGGING:
