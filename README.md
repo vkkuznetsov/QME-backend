@@ -1,3 +1,4 @@
 # QME-backend
 Queue for Modeus Electives
-# АХАХАХАХХАХАХАХАХАХАХАХАХАХХАХА
+# Команды для запуска
+Описаны в make файле
