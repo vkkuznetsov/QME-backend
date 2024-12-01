@@ -1,7 +1,7 @@
 default:
   DEBUG: true
   NAME: backend
-  HOST: localhost
+  HOST: 0.0.0.0
   PORT: 8080
   WORKERS: 4
   FAST_API_PATH: backend.app:app

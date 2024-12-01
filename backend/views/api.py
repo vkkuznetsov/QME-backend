@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request, Response, UploadFile, File
+from fastapi import APIRouter, UploadFile, File
 
 
 class API:
@@ -18,5 +18,4 @@ class API:
         return {"filename": file.filename}
 
     async def handle_csv_file(self, file: UploadFile = File(...)):
-        # Здесь ваша логика обработки csv файла
         return {"filename": file.filename}

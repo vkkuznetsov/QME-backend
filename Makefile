@@ -23,3 +23,18 @@ clean:
 	@poetry cache clear packages --all
 	@poetry cache clear cache --all
 	@rm -rf .venv
+
+build:
+	docker-compose build
+
+up:
+	docker-compose up -d
+
+down:
+	docker-compose down
+
+restart:
+	docker-compose down && docker-compose up -d
+
+delete:
+	docker-compose down -v
