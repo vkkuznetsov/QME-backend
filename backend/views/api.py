@@ -1,4 +1,7 @@
 from fastapi import APIRouter, UploadFile, File
+from logging import getLogger
+
+log = getLogger()
 
 
 class API:
@@ -15,6 +18,7 @@ class API:
         self.router.add_api_route('/upload/data2', self.handle_csv_file, methods=["POST"])
 
     async def handle_txt_file(self, file: UploadFile = File(...)):
+        log.info("Получен файл")
         return {"filename": file.filename}
 
     async def handle_csv_file(self, file: UploadFile = File(...)):

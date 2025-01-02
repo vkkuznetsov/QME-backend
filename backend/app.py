@@ -9,7 +9,7 @@ class App:
 
     def __init__(self):
         self.app = FastAPI()
-        # self.init_logging()
+        self.init_logging()
         self.connect_api()
 
     @staticmethod
