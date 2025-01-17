@@ -1,30 +1,42 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, Form
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from logging import getLogger
+import os
 import random
+import smtplib
+from datetime import datetime, timedelta
+from logging import getLogger
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+
 import redis
 from dotenv import load_dotenv
-import os
-from datetime import datetime, timedelta
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
 load_dotenv()
 
 log = getLogger()
 
-redis_client = redis.StrictRedis(host="localhost", port=6379, db=0, decode_responses=True)
+REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
+REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
+REDIS_DB = int(os.getenv("REDIS_DB", 0))
+REDIS_PASSWORD = os.getenv("REDIS_PASSWORD")
+
+redis_client = redis.StrictRedis(
+    host=REDIS_HOST,
+    port=REDIS_PORT,
+    db=REDIS_DB,
+    password=REDIS_PASSWORD,
+    decode_responses=True
+)
 
 SMTP_SERVER = os.getenv("SMTP_SERVER")
 SMTP_PORT = int(os.getenv("SMTP_PORT"))
 SMTP_USERNAME = os.getenv("SMTP_USERNAME")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
 
-OTP_EXPIRATION = 300  # Время жизни OTP (5 минут)
-MAX_ATTEMPTS = 5  # Максимальное количество попыток ввода OTP
-MAX_SENDS = 5  # Максимальное количество отправок за час
-COOLDOWN_TIME = 60  # Задержка между отправками (в секундах)
-BLOCK_TIME = 600  # Время блокировки (10 минут)
+OTP_EXPIRATION = int(os.getenv("OTP_EXPIRATION", 300))
+MAX_ATTEMPTS = int(os.getenv("MAX_ATTEMPTS", 5))
+MAX_SENDS = int(os.getenv("MAX_SENDS", 5))
+COOLDOWN_TIME = int(os.getenv("COOLDOWN_TIME", 60))
+BLOCK_TIME = int(os.getenv("BLOCK_TIME", 600))
 
 class API:
     def __init__(self):
@@ -91,7 +103,7 @@ class API:
         except smtplib.SMTPException as e:
             log.error(f"Ошибка при отправке OTP: {e}")
             raise HTTPException(status_code=500, detail="Ошибка при отправке OTP")
-
+    
     # Проверка OTP
     async def verify_otp(self, email: str = Form(...), otp: str = Form(...)):
         lock_key = f"otp_lock:{email}"
