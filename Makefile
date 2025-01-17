@@ -13,7 +13,7 @@ help:
 init:
 	@poetry config virtualenvs.create true
 	@poetry config virtualenvs.in-project true
-	@poetry lock --no-update
+	@poetry lock
 	@poetry install --no-root
 
 run:
