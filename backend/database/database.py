@@ -1,17 +1,18 @@
+import asyncio
 from functools import wraps
 from typing import Callable
 
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 
 from backend.config import settings
 
-DATABASE_URL = (f"{settings.DATABASE_DRIVER}://"
-                f"{settings.DATABASE_USERNAME}:"
-                f"{settings.DATABASE_PASSWORD}@"
-                f"{settings.DATABASE_HOST}:"
-                f"{settings.DATABASE_PORT}"
-                f"{settings.DATABASE_NAME}")
+DATABASE_URL = (f"{settings.DATABASE.DRIVER}://"
+                f"{settings.DATABASE.USER}:"
+                f"{settings.DATABASE.PASSWORD}@"
+                f"{settings.DATABASE.HOST}:"
+                f"{settings.DATABASE.PORT}/"
+                f"{settings.DATABASE.NAME}")
 
 engine = create_async_engine(DATABASE_URL, echo=False)
 AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)

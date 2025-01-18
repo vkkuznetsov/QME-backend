@@ -11,5 +11,5 @@ RUN poetry config virtualenvs.create false
 RUN poetry install --no-root --no-interaction --no-ansi
 
 COPY . .
-
+CMD ["export", "PYTHONPATH=/app"]
 CMD ["python", "-m", "backend"]

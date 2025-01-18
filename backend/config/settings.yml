@@ -10,12 +10,12 @@ default:
 
 
   DATABASE:
-    DRIVER: postgresql
+    DRIVER: postgresql+asyncpg
     HOST: db
-    PORT: 5732
+    PORT: 5432
     USER: postgres
     PASSWORD: postgres
-    NAME: qme_back
+    NAME: backend
 
   REDIS:
     HOST: redis
