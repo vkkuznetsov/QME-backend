@@ -1,4 +1,3 @@
-import os
 import random
 import smtplib
 from datetime import datetime, timedelta
@@ -10,33 +9,31 @@ import redis
 from dotenv import load_dotenv
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
+from backend.config import settings
+
 load_dotenv()
 
-log = getLogger()
+log = getLogger(__name__)
 
-REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
-REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
-REDIS_DB = int(os.getenv("REDIS_DB", 0))
-REDIS_PASSWORD = os.getenv("REDIS_PASSWORD")
 
 redis_client = redis.StrictRedis(
-    host=REDIS_HOST,
-    port=REDIS_PORT,
-    db=REDIS_DB,
-    password=REDIS_PASSWORD,
+    host=settings.REDIS.HOST,
+    port=settings.REDIS.PORT,
+    db=settings.REDIS.DB,
+    password=settings.REDIS.PASSWORD,
     decode_responses=True
 )
 
-SMTP_SERVER = os.getenv("SMTP_SERVER")
-SMTP_PORT = int(os.getenv("SMTP_PORT"))
-SMTP_USERNAME = os.getenv("SMTP_USERNAME")
-SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
+SMTP_SERVER = settings.SMTP.SERVER
+SMTP_PORT = settings.SMTP.PORT
+SMTP_USERNAME = settings.SMTP.USERNAME
+SMTP_PASSWORD = settings.SMTP.PASSWORD
 
-OTP_EXPIRATION = int(os.getenv("OTP_EXPIRATION", 300))
-MAX_ATTEMPTS = int(os.getenv("MAX_ATTEMPTS", 5))
-MAX_SENDS = int(os.getenv("MAX_SENDS", 5))
-COOLDOWN_TIME = int(os.getenv("COOLDOWN_TIME", 60))
-BLOCK_TIME = int(os.getenv("BLOCK_TIME", 600))
+OTP_EXPIRATION = settings.OTP.EXPIRATION
+MAX_ATTEMPTS = settings.OTP.MAX_ATTEMPTS
+MAX_SENDS = settings.OTP.MAX_SENDS
+COOLDOWN_TIME = settings.OTP.COOLDOWN_TIME
+BLOCK_TIME = settings.OTP.BLOCK_TIME
 
 class API:
     def __init__(self):

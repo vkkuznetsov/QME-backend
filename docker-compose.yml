@@ -10,13 +10,21 @@ services:
       - db
 
   db:
-    image: postgres:16-alpine
+    image: postgres:17-alpine
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: backend
     ports:
       - "5432:5432"
+    networks:
+      - backend
+
+  redis:
+    image: redis:latest
+    command: ["redis-server", "--requirepass", "redis"]
+    ports:
+      - "6379:6379"
     networks:
       - backend
 

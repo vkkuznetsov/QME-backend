@@ -11,11 +11,30 @@ default:
 
   DATABASE:
     DRIVER: postgresql
-    HOST: localhost
+    HOST: db
     PORT: 5732
     USER: postgres
     PASSWORD: postgres
     NAME: qme_back
+
+  REDIS:
+    HOST: redis
+    PORT: 6379
+    DB: 0
+    PASSWORD: redis
+
+  SMTP:
+    SERVER: smtp.yandex.ru
+    PORT: 465
+    USERNAME: ''
+    PASSWORD: ''
+
+  OTP:
+    EXPIRATION: 300
+    MAX_ATTEMPTS: 5
+    MAX_SENDS: 5
+    COOLDOWN_TIME: 60
+    BLOCK_TIME: 600
 
   LOGGING:
     version: 1
