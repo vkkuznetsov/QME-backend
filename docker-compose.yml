@@ -21,6 +21,8 @@ services:
       - "5431:5432"
     networks:
       - backend
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
 
   redis:
     container_name: main_redis
@@ -34,3 +36,7 @@ services:
 networks:
   backend:
     driver: bridge
+
+volumes:
+  postgres_data:
+    name: postgres_data
