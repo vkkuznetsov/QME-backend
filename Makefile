@@ -41,7 +41,7 @@ delete:
 
 # применить последнюю миграцию
 migrate:
-    docker exec -it main-app sh -c "alembic upgrade head"
+	docker exec -it main-app sh -c "alembic upgrade head"
 
 make-migration:
-    docker exec -it main-app sh -c "alembic revision -m \"${MESSAGE}\""
+	docker exec -it main-app sh -c "alembic revision -m \"${MESSAGE}\""
