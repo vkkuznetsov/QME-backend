@@ -4,11 +4,12 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
 from backend.config import settings
 from backend.database.redis import redis_client
-from backend.services.code_service.base import RedisCodeService
-from backend.services.sender_service.base import YandexSenderService
-from backend.services.student_service.base import ORMStudentService
-from backend.services.zexceptions.base import ServiceException
-from backend.use_cases.confirm_code import AuthorizeCodeUseCase
+from backend.logic.services.code_service.redis import RedisCodeService
+from backend.logic.services.sender_service.yandex import YandexSenderService
+from backend.logic.services.student_service.orm import ORMStudentService
+from backend.logic.services.zexceptions.base import ServiceException
+from backend.logic.use_cases.authorize_code import AuthorizeCodeUseCase
+from backend.logic.use_cases.confirm_code import ConfirmCodeUseCase
 
 log = getLogger(__name__)
 
@@ -53,4 +54,12 @@ class API:
             return HTTPException(detail=e.message, status_code=400)
 
     async def verify_otp(self, email: str = Form(...), otp: str = Form(...)):
-        ...
+        student_service = ORMStudentService()
+        code_service = RedisCodeService(redis_client)
+
+        use_case = ConfirmCodeUseCase(student_service, code_service)
+        try:
+            await use_case.execute(email, otp)
+            return {"status": "success"}
+        except ServiceException as e:
+            raise HTTPException(detail=e.message, status_code=404)

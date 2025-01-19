@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from backend.services.zexceptions.base import ServiceException
+from backend.logic.services.zexceptions.base import ServiceException
 
 
 @dataclass

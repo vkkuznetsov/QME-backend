@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 
-from backend.services.code_service.base import ICodeService
-from backend.services.sender_service.base import ISenderService
-from backend.services.student_service.base import IStudentService
+from backend.logic.services.code_service.base import ICodeService
+from backend.logic.services.sender_service.base import ISenderService
+from backend.logic.services.student_service.base import IStudentService
 
 
 @dataclass

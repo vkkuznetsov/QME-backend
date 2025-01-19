@@ -2,6 +2,7 @@ services:
   backend:
     build:
       context: .
+    container_name: main-app
     ports:
       - "8080:8080"
     networks:
@@ -10,6 +11,7 @@ services:
       - db
 
   db:
+    container_name: main_db
     image: postgres:17-alpine
     environment:
       POSTGRES_USER: postgres
@@ -21,6 +23,7 @@ services:
       - backend
 
   redis:
+    container_name: main_redis
     image: redis:latest
     command: ["redis-server", "--requirepass", "redis"]
     ports:

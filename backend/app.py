@@ -1,7 +1,8 @@
 import logging.config
 from fastapi import FastAPI
 
-from backend.views.api import API
+from backend.api.auth.api import API
+from backend.api.healthcheck.healthcheck import router as healthcheck_router
 from backend.config import settings
 
 
@@ -19,6 +20,6 @@ class App:
     def connect_api(self):
         api = API()
         self.app.include_router(api.router)
-
+        self.app.include_router(healthcheck_router)
 
 app = App().app

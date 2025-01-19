@@ -1,20 +1,10 @@
 import random
-from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 from redis.asyncio import StrictRedis
 from backend.config import settings
-from backend.services.zexceptions.code import CodeNotFoundException, CodeNotEqualException
-
-
-class ICodeService(ABC):
-    @abstractmethod
-    async def generate_code(self, student_email: str):
-        ...
-
-    @abstractmethod
-    async def validate_code(self, student_email: str, code: str):
-        ...
+from backend.logic.services.code_service.base import ICodeService
+from backend.logic.services.zexceptions.code import CodeNotFoundException, CodeNotEqualException
 
 
 @dataclass
@@ -35,4 +25,3 @@ class RedisCodeService(ICodeService):
         if cached_code != code:
             raise CodeNotEqualException()
         await self.redis.delete(student_email)
-

@@ -38,3 +38,10 @@ restart:
 
 delete:
 	docker-compose down -v
+
+# применить последнюю миграцию
+migrate:
+    docker exec -it main-app sh -c "alembic upgrade head"
+
+make-migration:
+    docker exec -it main-app sh -c "alembic revision -m \"${MESSAGE}\""

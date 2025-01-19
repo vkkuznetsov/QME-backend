@@ -1,17 +1,11 @@
 import smtplib
-from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 from backend.config import settings
-from backend.services.zexceptions.sender import SendSMTPException
-
-
-class ISenderService(ABC):
-    @abstractmethod
-    async def send_code(self, student_email: str, code: str):
-        ...
+from backend.logic.services.sender_service.base import ISenderService
+from backend.logic.services.zexceptions.sender import SendSMTPException
 
 
 @dataclass
@@ -34,14 +28,4 @@ class YandexSenderService(ISenderService):
                 server.sendmail(self.SMTP_USERNAME, student_email, message.as_string())
 
         except smtplib.SMTPException:
-            print(f"{student_email=}{code=}")
-            print(self.SMTP_SERVER)
-            print(self.SMTP_PORT)
-            print(self.SMTP_USERNAME)
-            print(self.SMTP_PASSWORD)
             raise SendSMTPException()
-if __name__ == '__main__':
-    import asyncio
-    async def main():
-        await YandexSenderService().send_code('vita.201581@yandex.ru','15')
-    asyncio.run(main())
