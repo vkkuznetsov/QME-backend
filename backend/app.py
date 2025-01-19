@@ -22,4 +22,5 @@ class App:
         self.app.include_router(api.router)
         self.app.include_router(healthcheck_router)
 
+
 app = App().app

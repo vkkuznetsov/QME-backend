@@ -1,10 +1,14 @@
 import uvicorn
-from backend.config import settings
+
+from backend.project.config import get_config
+from backend.setup import get_app
+
+config = get_config()
+app = get_app()
+
 
 if __name__ == "__main__":
-    uvicorn.run(
-        settings.FAST_API_PATH,
-        host=settings.HOST,
-        port=settings.PORT,
-        reload=settings.RELOADED,
-    )
+    host = config.app_settings.HOST
+    port = config.app_settings.PORT
+    reload = config.app_settings.RELOAD
+    uvicorn.run('backend.setup:get_app', host=host, port=port, reload=reload)
