@@ -8,7 +8,10 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 from alembic import context
 
 from backend.database.database import Base, DATABASE_URL
-from backend.database.models import *
+from backend.database.models.student import Student, student_group
+from backend.database.models.elective import Elective
+from backend.database.models.group import Group
+
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

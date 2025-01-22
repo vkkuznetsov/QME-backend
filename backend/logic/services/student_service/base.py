@@ -6,13 +6,10 @@ class IStudentService(ABC):
     async def get_student_by_email(self, student_email):
         ...
 
+    @abstractmethod
+    async def get_student_group_elective_email(self, student_email):
+        ...
 
-if __name__ == '__main__':
-    import asyncio
-
-
-    async def main():
-        res = await ORMStudentService().get_student_by_email('vita.201581@yandex.ru')
-
-
-    asyncio.run(main())
+    @abstractmethod
+    async def get_groups_students_by_elective(self, id_elective):
+        ...

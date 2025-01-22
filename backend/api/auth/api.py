@@ -30,7 +30,8 @@ class API:
         return self._router
 
     def _setup_routes(self):
-        self.router.add_api_route("/student", self.get_student, methods=["GET"])
+        self.router.add_api_route("/student_info", self.get_student, methods=["GET"])
+        self.router.add_api_route("/elective_info", self.get_elective, methods=["GET"])
         self.router.add_api_route("/upload/student-choices", self.handle_student_choices, methods=["POST"])
         self.router.add_api_route("/auth/send-otp", self.send_otp, methods=["POST"])
         self.router.add_api_route("/auth/verify-otp", self.verify_otp, methods=["POST"])
@@ -40,7 +41,12 @@ class API:
         return {"filename": file.filename}
 
     async def get_student(self, email: str):
-        return email
+        student_service = ORMStudentService()
+        return await student_service.get_student_group_elective_email(email)
+
+    async def get_elective(self, elective_id: int):
+        student_service = ORMStudentService()
+        return await student_service.get_groups_students_by_elective(elective_id)
 
     async def send_otp(self, email: str = Form(...)):
         try:

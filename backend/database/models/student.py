@@ -1,7 +1,8 @@
-import asyncio
+from typing import List
 
-from backend.database.database import Base, engine
-from sqlalchemy.orm import Mapped, mapped_column
+from backend.database.database import Base
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import Table, Column, Integer, ForeignKey
 
 
 class Student(Base):
@@ -10,16 +11,21 @@ class Student(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     fio: Mapped[str]
     email: Mapped[str]
-    course: Mapped[str]
+    sp_code: Mapped[str]
+    sp_profile: Mapped[str]
+    potok: Mapped[str]
+
+    groups: Mapped[List["Group"]] = relationship(
+        back_populates="students", secondary="student_group"
+    )
 
     def __str__(self):
         return f'{self.id} - {self.fio} - {self.email}'
 
 
-async def create_tables():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-
-
-if __name__ == "__main__":
-    asyncio.run(create_tables())
+student_group = Table(
+    'student_group',
+    Base.metadata,
+    Column('student_id', Integer, ForeignKey('student.id'), primary_key=True),
+    Column('group_id', Integer, ForeignKey('group.id'), primary_key=True),
+)
