@@ -31,14 +31,13 @@ class API:
 
     def _setup_routes(self):
         self.router.add_api_route("/student_info", self.get_student, methods=["GET"])
-        self.router.add_api_route("/elective_info", self.get_elective, methods=["GET"])
+        self.router.add_api_route("/elective/{elective_id}", self.get_elective, methods=["GET"])
+        self.router.add_api_route("/all_elective", self.get_all_elective, methods=["GET"])
+
         self.router.add_api_route("/upload/student-choices", self.handle_student_choices, methods=["POST"])
+
         self.router.add_api_route("/auth/send-otp", self.send_otp, methods=["POST"])
         self.router.add_api_route("/auth/verify-otp", self.verify_otp, methods=["POST"])
-
-    async def handle_student_choices(self, file: UploadFile = File(...)):
-        log.info("Получен файл")
-        return {"filename": file.filename}
 
     async def get_student(self, email: str):
         student_service = ORMStudentService()
@@ -47,6 +46,15 @@ class API:
     async def get_elective(self, elective_id: int):
         student_service = ORMStudentService()
         return await student_service.get_groups_students_by_elective(elective_id)
+
+    async def get_all_elective(self):
+        student_service = ORMStudentService()
+        return await student_service.get_all_electives()
+
+    async def handle_student_choices(self, file: UploadFile = File(...)):
+        from backend.parse_choose import parse_file
+        await parse_file(file)
+        return {"filename": file.filename}
 
     async def send_otp(self, email: str = Form(...)):
         try:

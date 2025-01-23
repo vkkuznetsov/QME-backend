@@ -11,6 +11,12 @@ class Elective(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     name: Mapped[str]
+    modeus_link: Mapped[str] = mapped_column(nullable=True)
+    description: Mapped[str] = mapped_column(nullable=True)
+    text: Mapped[str] = mapped_column(nullable=True)
+    questions: Mapped[str] = mapped_column(nullable=True)
+    cluster: Mapped[str] = mapped_column(nullable=True)
+
     groups: Mapped[List["Group"]] = relationship(
         back_populates="elective"
     )

@@ -19,8 +19,6 @@ class ORMStudentService(IStudentService):
 
     @db_session
     async def get_student_group_elective_email(self, student_email, db: AsyncSession):
-        import time
-        time1 = time.time()
         query = (
             select(Student)
             .options(
@@ -32,13 +30,12 @@ class ORMStudentService(IStudentService):
 
         result = await db.execute(query)
         student = result.unique().scalar_one_or_none()
-        print(time.time() - time1)
         if student:
             return student
         return None
 
     @db_session
-    async def get_groups_students_by_elective(self, id_elective:int, db: AsyncSession):
+    async def get_groups_students_by_elective(self, id_elective: int, db: AsyncSession):
         query = (
             select(Elective)
             .options(
@@ -55,3 +52,10 @@ class ORMStudentService(IStudentService):
             return elective
         return None
 
+    @db_session
+    async def get_all_electives(self, db: AsyncSession):
+
+        result = await db.execute(select(Elective.id, Elective.name, Elective.cluster))
+        electives = [{"id": id, "name": name, "cluster": cluster} for id, name, cluster in result.all()]
+
+        return electives
