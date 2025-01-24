@@ -1,6 +1,9 @@
 import io
+import json
 import time
 import asyncio
+from pathlib import Path
+
 import pandas as pd
 
 from sqlalchemy import select
@@ -197,6 +200,39 @@ async def add_data_to_elective_from_xlsx(db: AsyncSession):
         await db.close()
 
 
+from sqlalchemy import update, and_
+
+
+async def add_cluster(db: AsyncSession):
+    """Добавляет данные о кластерах из JSON файла только для тех записей, где cluster не задан"""
+    json_path = r'C:\Users\vik\Desktop\PROJECT\QME-backend\backend\data\courses_clusters.json'
+
+    with open(json_path, "r", encoding="utf-8") as f:
+        clusters_data = json.load(f)
+
+    cluster_mapping = {item["name"]: item["cluster"] for item in clusters_data}
+
+    result = await db.execute(
+        select(Elective).where(Elective.cluster.is_(None))
+    )
+    electives = result.scalars().all()
+
+    updated_count = 0
+    for elective in electives:
+        if elective.name in cluster_mapping:
+            await db.execute(
+                update(Elective)
+                .where(and_(
+                    Elective.id == elective.id,
+                    Elective.cluster.is_(None)
+                ))
+                .values(cluster=cluster_mapping[elective.name])
+            )
+            updated_count += 1
+
+    await db.commit()
+
+
 @db_session
 async def parse_data_frame(filtered_df, db: AsyncSession):
     t1 = time.time()
@@ -206,6 +242,9 @@ async def parse_data_frame(filtered_df, db: AsyncSession):
     t3 = time.time()
     await add_data_to_elective_from_xlsx(db)
     t4 = time.time()
-    print(t2-t1)
-    print(t3-t2)
-    print(t4-t3)
+    await add_cluster(db)
+    t5 = time.time()
+    print(t2 - t1)
+    print(t3 - t2)
+    print(t4 - t3)
+    print(t5 - t4)

@@ -1,0 +1,98 @@
+from enum import Enum
+
+from sqlalchemy import select, func
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from backend.database.database import db_session
+from backend.database.models import Elective, Group
+from backend.database.models.transfer import Transfer
+from backend.logic.services.transfer_service.base import ITransferService
+
+
+class TransferStatus(str, Enum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+
+
+class ORMTransferService(ITransferService):
+
+    @db_session
+    async def get_transfer_by_student_id(self, student_id, db: AsyncSession):
+        # Маппинг статусов на русский язык
+        status_mapping = {
+            "pending": "Ожидается",
+            "rejected": "Отклонено",
+            "approved": "Одобрено"
+        }
+
+        transfers_result = await db.execute(
+            select(Transfer).where(Transfer.student_id == student_id)
+        )
+        transfers = transfers_result.scalars().all()
+
+        result = []
+        for transfer in transfers:
+            from_elective = await db.get(Elective, transfer.from_elective_id)
+            to_elective = await db.get(Elective, transfer.to_elective_id)
+
+            selected_groups = []
+
+            group_mapping = [
+                (transfer.to_lecture_group_id, "лекция", Group),
+                (transfer.to_practice_group_id, "практика", Group),
+                (transfer.to_lab_group_id, "лабораторные", Group),
+                (transfer.to_consultation_group_id, "консультация", Group)
+            ]
+
+            for group_id, group_type, model in group_mapping:
+                if group_id:
+                    group = await db.get(model, group_id)
+                    if group:
+                        selected_groups.append({
+                            "id": group.id,
+                            "type": group_type,
+                            "name": group.name
+                        })
+
+            # Преобразуем статус
+            raw_status = transfer.status
+            translated_status = status_mapping.get(raw_status, "Неизвестный статус")
+
+            result.append({
+                "id": transfer.id,
+                "userId": transfer.student_id,
+                "electiveId": transfer.to_elective_id,
+                "sourceElectiveId": transfer.from_elective_id,
+                "sourceElectiveName": from_elective.name if from_elective else "Неизвестный электив",
+                "electiveName": to_elective.name if to_elective else "Неизвестный электив",
+                "selectedGroups": selected_groups,
+                "status": translated_status,  # Используем переведенный статус
+                "priority": transfer.priority
+            })
+
+        return result
+
+    @db_session
+    async def get_all_transfers(self, db: AsyncSession):
+        query = select(Transfer)
+        result = await db.execute(query)
+        transfers = result.all()
+        return transfers
+
+    @db_session
+    async def create_transfer(self, student_id: int, to_lecture_group_id: int | None, to_practice_group_id: int | None,
+                              to_lab_group_id: int | None, to_consultation_group_id: int | None, from_elective_id: int,
+                              to_elective_id: int, db: AsyncSession):
+        existing_count = await db.execute(
+            select(func.count()).where(Transfer.student_id == student_id)
+        )
+        priority = existing_count.scalar() + 1
+
+        transfer = Transfer(student_id=student_id, to_lecture_group_id=to_lecture_group_id,
+                            to_practice_group_id=to_practice_group_id, to_lab_group_id=to_lab_group_id,
+                            to_consultation_group_id=to_consultation_group_id, from_elective_id=from_elective_id,
+                            to_elective_id=to_elective_id, priority=priority)
+        db.add(transfer)
+        await db.commit()
+        return transfer

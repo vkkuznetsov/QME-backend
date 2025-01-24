@@ -18,6 +18,7 @@ class Student(Base):
     groups: Mapped[List["Group"]] = relationship(
         back_populates="students", secondary="student_group"
     )
+    transfers: Mapped[List["Transfer"]] = relationship('Transfer', back_populates='student')
 
     def __str__(self):
         return f'{self.id} - {self.fio} - {self.email}'
