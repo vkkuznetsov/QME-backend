@@ -3,6 +3,7 @@ from dishka.integrations.fastapi import setup_dishka
 
 
 from fastapi import FastAPI
+from starlette.middleware.cors import CORSMiddleware
 
 from backend.api.healthcheck.healthcheck import router as healthcheck_router
 from backend.api.auth.api import API
@@ -14,6 +15,7 @@ from backend.project.providers.healthcheck import HealthCheckProvider
 
 
 def get_app() -> FastAPI:
+
     config = get_config()
     init_logging(config.logging_settings.LOGGING_LEVEL)
 
@@ -24,6 +26,13 @@ def get_app() -> FastAPI:
     )
 
     app = FastAPI(**fastapi_params)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"],
+        allow_headers=["*"],
+    )
 
     container = make_async_container(DBProvider(), HealthCheckProvider())
     setup_dishka(container, app)
