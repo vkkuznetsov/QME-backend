@@ -114,7 +114,7 @@ class ORMStudentService(IStudentService):
             select(Student)
             .options(
                 joinedload(Student.groups)
-                .joinedload(Group.elective)
+                .joinedload(Group.electives)
             )
             .where(Student.email == student_email)
         )
@@ -131,7 +131,7 @@ class ORMStudentService(IStudentService):
             select(Student)
             .options(
                 joinedload(Student.groups)
-                .joinedload(Group.elective)
+                .joinedload(Group.electives)
             )
         )
 

@@ -6,7 +6,6 @@ from backend.setup import get_app
 config = get_config()
 app = get_app()
 
-
 if __name__ == "__main__":
     host = config.app_settings.HOST
     port = config.app_settings.PORT

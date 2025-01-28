@@ -5,7 +5,6 @@ from sqlalchemy import ForeignKey
 from backend.database.database import Base
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-
 class Group(Base):
     __tablename__ = 'group'
 
@@ -15,13 +14,15 @@ class Group(Base):
     capacity: Mapped[int]
 
     elective_id: Mapped[int] = mapped_column(ForeignKey("elective.id"))
-    elective: Mapped["Elective"] = relationship(
+    electives: Mapped["Elective"] = relationship(
         back_populates="groups"
     )
 
     students: Mapped[List["Student"]] = relationship(
         back_populates="groups", secondary="student_group"
     )
+
+    transfers: Mapped[list["Transfer"]] = relationship(secondary="transfer_group", back_populates="groups")
 
     def __str__(self):
         return f'{self.id} - {self.name} - {self.type}'

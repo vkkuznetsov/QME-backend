@@ -103,18 +103,12 @@ class API:
             student_id = data['student_id']
             from_elective_id = data['from_elective_id']
             to_elective_id = data['to_elective_id']
-            to_consultation_group_id = data['to_consultation_group_id']
-            to_lab_group_id = data['to_lab_group_id']
-            to_practice_group_id = data['to_practice_group_id']
-            to_lecture_group_id = data['to_lecture_group_id']
+            to_groups = data['to_groups']
 
             transfer_service = ORMTransferService()
             result = await transfer_service.create_transfer(
                 student_id=student_id,
-                to_lecture_group_id=to_lecture_group_id,
-                to_practice_group_id=to_practice_group_id,
-                to_lab_group_id=to_lab_group_id,
-                to_consultation_group_id=to_consultation_group_id,
+                to_groups=to_groups,
                 from_elective_id=from_elective_id,
                 to_elective_id=to_elective_id
             )

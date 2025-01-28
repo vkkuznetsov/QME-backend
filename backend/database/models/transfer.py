@@ -10,15 +10,10 @@ class Transfer(Base):
     __tablename__ = 'transfer'
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    student_id: Mapped[int] = mapped_column(ForeignKey('student.id'), nullable=False)
+    student_id: Mapped[int | None] = mapped_column(ForeignKey('student.id'))
 
-    to_lecture_group_id: Mapped[int] = mapped_column(ForeignKey('group.id'), nullable=True)
-    to_practice_group_id: Mapped[int] = mapped_column(ForeignKey('group.id'), nullable=True)
-    to_lab_group_id: Mapped[int] = mapped_column(ForeignKey('group.id'), nullable=True)
-    to_consultation_group_id: Mapped[int] = mapped_column(ForeignKey('group.id'), nullable=True)
-
-    from_elective_id: Mapped[int] = mapped_column(ForeignKey('elective.id'), nullable=False)
-    to_elective_id: Mapped[int] = mapped_column(ForeignKey('elective.id'), nullable=False)
+    from_elective_id: Mapped[int] = mapped_column(ForeignKey('elective.id'))
+    to_elective_id: Mapped[int] = mapped_column(ForeignKey('elective.id'))
 
     status: Mapped[str] = mapped_column(String, default='pending')
     priority: Mapped[int] = mapped_column(Integer, default=1)
@@ -27,10 +22,15 @@ class Transfer(Base):
     # Отношения
     student: Mapped['Student'] = relationship('Student', back_populates='transfers')
 
-    from_lecture_group: Mapped['Group'] = relationship('Group', foreign_keys=[to_lecture_group_id])
-    from_practice_group: Mapped['Group'] = relationship('Group', foreign_keys=[to_practice_group_id])
-    from_lab_group: Mapped['Group'] = relationship('Group', foreign_keys=[to_lab_group_id])
-    from_consultation_group: Mapped['Group'] = relationship('Group', foreign_keys=[to_consultation_group_id])
+    groups: Mapped[list["Group"]] = relationship(secondary="transfer_group", back_populates="transfers")
 
-    from_elective: Mapped['Elective'] = relationship('Elective', foreign_keys=[from_elective_id])
-    to_elective: Mapped['Elective'] = relationship('Elective', foreign_keys=[to_elective_id])
+    from_elective: Mapped["Elective"] = relationship(foreign_keys="[Transfer.from_elective_id]")
+    to_elective: Mapped["Elective"] = relationship(foreign_keys="[Transfer.to_elective_id]")
+
+
+class TransferGroup(Base):
+    __tablename__ = 'transfer_group'
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    transfer_id: Mapped[int] = mapped_column(ForeignKey('transfer.id'))
+    group_id: Mapped[int] = mapped_column(ForeignKey('group.id'))

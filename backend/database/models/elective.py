@@ -3,8 +3,6 @@ from typing import List
 from backend.database.database import Base
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from backend.database.models.group import Group
-
 
 class Elective(Base):
     __tablename__ = 'elective'
@@ -18,7 +16,7 @@ class Elective(Base):
     cluster: Mapped[str] = mapped_column(nullable=True)
 
     groups: Mapped[List["Group"]] = relationship(
-        back_populates="elective"
+        back_populates="electives",
     )
 
     def __str__(self):
