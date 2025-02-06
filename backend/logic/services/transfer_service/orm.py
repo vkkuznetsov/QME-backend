@@ -7,6 +7,11 @@ from backend.database.database import db_session
 from backend.database.models import Elective, Group
 from backend.database.models.transfer import Transfer
 from backend.logic.services.transfer_service.base import ITransferService
+from logging import getLogger
+
+from backend.logic.services.zexceptions.orm import AlreadyExistsTransfer
+
+logger = getLogger(__name__)
 
 
 class TransferStatus(str, Enum):
@@ -81,18 +86,106 @@ class ORMTransferService(ITransferService):
         return transfers
 
     @db_session
-    async def create_transfer(self, student_id: int, to_lecture_group_id: int | None, to_practice_group_id: int | None,
-                              to_lab_group_id: int | None, to_consultation_group_id: int | None, from_elective_id: int,
-                              to_elective_id: int, db: AsyncSession):
-        existing_count = await db.execute(
-            select(func.count()).where(Transfer.student_id == student_id)
-        )
-        priority = existing_count.scalar() + 1
+    async def create_transfer(self, student_id: int,
+                              to_lecture_group_id: int | None,
+                              to_practice_group_id: int | None,
+                              to_lab_group_id: int | None,
+                              to_consultation_group_id: int | None,
+                              from_elective_id: int,
+                              to_elective_id: int,
+                              db: AsyncSession):
 
-        transfer = Transfer(student_id=student_id, to_lecture_group_id=to_lecture_group_id,
-                            to_practice_group_id=to_practice_group_id, to_lab_group_id=to_lab_group_id,
-                            to_consultation_group_id=to_consultation_group_id, from_elective_id=from_elective_id,
-                            to_elective_id=to_elective_id, priority=priority)
+        if await self._check_existing_transfer(
+                db=db,
+                student_id=student_id,
+                to_lecture_group_id=to_lecture_group_id,
+                to_practice_group_id=to_practice_group_id,
+                to_lab_group_id=to_lab_group_id,
+                to_consultation_group_id=to_consultation_group_id,
+                from_elective_id=from_elective_id,
+                to_elective_id=to_elective_id
+        ):
+            logger.error(f"Заявка уже существует {student_id} {from_elective_id} {to_elective_id}")
+            raise AlreadyExistsTransfer(student_id, from_elective_id, to_elective_id)
+
+        priority = await self._calculate_priority(
+            db=db,
+            student_id=student_id,
+            from_elective_id=from_elective_id
+        )
+
+        return await self._create_new_transfer(
+            db=db,
+            student_id=student_id,
+            to_lecture_group_id=to_lecture_group_id,
+            to_practice_group_id=to_practice_group_id,
+            to_lab_group_id=to_lab_group_id,
+            to_consultation_group_id=to_consultation_group_id,
+            from_elective_id=from_elective_id,
+            to_elective_id=to_elective_id,
+            priority=priority
+        )
+
+    @staticmethod
+    async def _check_existing_transfer(db: AsyncSession, student_id: int,
+                                       to_lecture_group_id: int | None,
+                                       to_practice_group_id: int | None,
+                                       to_lab_group_id: int | None,
+                                       to_consultation_group_id: int | None,
+                                       from_elective_id: int,
+                                       to_elective_id: int) -> bool:
+        """
+        Проверяет, существует ли уже такая заявка.
+        """
+        existing_transfer = await db.execute(
+            select(Transfer).where(
+                Transfer.student_id == student_id,
+                Transfer.to_lecture_group_id == to_lecture_group_id,
+                Transfer.to_practice_group_id == to_practice_group_id,
+                Transfer.to_lab_group_id == to_lab_group_id,
+                Transfer.to_consultation_group_id == to_consultation_group_id,
+                Transfer.from_elective_id == from_elective_id,
+                Transfer.to_elective_id == to_elective_id
+            )
+        )
+        return existing_transfer.scalars().first() is not None
+
+    @staticmethod
+    async def _calculate_priority(db: AsyncSession, student_id: int, from_elective_id: int) -> int:
+        """
+        Рассчитывает приоритет для нового запроса на основе student_id и from_elective_id.
+        """
+        priority_query = await db.execute(
+            select(func.count()).where(
+                Transfer.student_id == student_id,
+                Transfer.from_elective_id == from_elective_id
+            )
+        )
+        return priority_query.scalar() + 1
+
+    @staticmethod
+    async def _create_new_transfer(db: AsyncSession, student_id: int,
+                                   to_lecture_group_id: int | None,
+                                   to_practice_group_id: int | None,
+                                   to_lab_group_id: int | None,
+                                   to_consultation_group_id: int | None,
+                                   from_elective_id: int,
+                                   to_elective_id: int,
+                                   priority: int) -> Transfer:
+        """
+        Создает новую запись Transfer в базе данных.
+        """
+        transfer = Transfer(
+            student_id=student_id,
+            to_lecture_group_id=to_lecture_group_id,
+            to_practice_group_id=to_practice_group_id,
+            to_lab_group_id=to_lab_group_id,
+            to_consultation_group_id=to_consultation_group_id,
+            from_elective_id=from_elective_id,
+            to_elective_id=to_elective_id,
+            priority=priority
+        )
         db.add(transfer)
         await db.commit()
+        await db.refresh(transfer)
         return transfer
