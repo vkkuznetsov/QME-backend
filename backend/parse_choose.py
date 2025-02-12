@@ -1,22 +1,19 @@
 import io
 import json
 import time
-import asyncio
 from pathlib import Path
 
 import pandas as pd
-
-from sqlalchemy import select
-from sqlalchemy import exists
+from sqlalchemy import select, exists
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from sqlalchemy.orm import joinedload
 
+from backend.config import PROJECT_PATH
 from backend.database.database import Base, db_session
+from backend.database.models.elective import Elective
 from backend.database.models.group import Group
 from backend.database.models.student import Student
-from backend.database.models.elective import Elective
 from backend.database.models.student import student_group
-
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine, async_sessionmaker
 
 
 async def reset_database(engine: AsyncEngine):
@@ -144,7 +141,7 @@ async def parse_file(file):
 
 async def add_data_to_elective_from_xlsx(db: AsyncSession):
     try:
-        file_path = r'C:\Users\vik\Desktop\PROJECT\QME-backend\backend\data\parsed_questions.xlsx'
+        file_path = Path(PROJECT_PATH) / 'data' / 'parsed_questions.xlsx'
         df = pd.read_excel(file_path, engine='openpyxl')
 
         excel_data = df.set_index('Название').to_dict(orient='index')
@@ -205,7 +202,7 @@ from sqlalchemy import update, and_
 
 async def add_cluster(db: AsyncSession):
     """Добавляет данные о кластерах из JSON файла только для тех записей, где cluster не задан"""
-    json_path = r'C:\Users\vik\Desktop\PROJECT\QME-backend\backend\data\courses_clusters.json'
+    json_path = Path(PROJECT_PATH) / 'data' / 'courses_clusters.json'
 
     with open(json_path, "r", encoding="utf-8") as f:
         clusters_data = json.load(f)
