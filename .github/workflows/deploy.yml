@@ -28,7 +28,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           password: ${{ secrets.SSH_PASSWORD }}
           script: |
-            cd /pr/QME-backend/
+            cd /root/pr/QME-backend
             git pull origin devel
             make down 
             make delete
