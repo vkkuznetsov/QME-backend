@@ -18,9 +18,9 @@ jobs:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v0.1.7
         with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USERNAME }}
-          password: ${{ secrets.SSH_PASSWORD }}
+          INPUT_HOST: ${{ env.INPUT_HOST }}
+          INPUT_USERNAME: ${{ env.INPUT_USERNAME }}
+          INPUT_PASSWORD: ${{ env.INPUT_PASSWORD }}
           script: |
             cd /pr/QME-backend/
             git pull origin devel
