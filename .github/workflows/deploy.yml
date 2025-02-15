@@ -16,17 +16,17 @@ jobs:
       # Если требуется собрать или протестировать проект, добавьте соответствующие шаги здесь.
       - name: Debug variables
         run: |
-          echo "Host: ${{ env.INPUT_HOST }}"
-          echo "Username: ${{ env.INPUT_USERNAME }}"
-          echo "Password: ${{ env.INPUT_PASSWORD }}"
+          echo "Host: ${{ secrets.INPUT_HOST }}"
+          echo "Username: ${{ secrets.INPUT_USERNAME }}"
+          echo "Password: ${{ secrets.INPUT_PASSWORD }}"
           echo "SEC test: ${{ secrets.SSH_PASSWORD }}"
 
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v0.1.7
         with:
-          host: ${{ env.INPUT_HOST }}
-          username: ${{ env.INPUT_USERNAME }}
-          password: ${{ env.INPUT_PASSWORD }}
+          host: ${{ secrets.INPUT_HOST }}
+          username: ${{ secrets.INPUT_USERNAME }}
+          password: ${{ secrets.INPUT_PASSWORD }}
           script: |
             cd /pr/QME-backend/
             git pull origin devel
