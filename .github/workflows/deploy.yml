@@ -19,7 +19,7 @@ jobs:
           echo "Host: ${{ env.INPUT_HOST }}"
           echo "Username: ${{ env.INPUT_USERNAME }}"
           echo "Password: ${{ env.INPUT_PASSWORD }}"
-          echo "SEC test: ${{ secret.SSH_PASSWORD }}"
+          echo "SEC test: ${{ secrets.SSH_PASSWORD }}"
 
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v0.1.7
