@@ -1,0 +1,29 @@
+name: Deploy to Remote Server
+
+on:
+  push:
+    branches:
+      - deploy
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Если требуется собрать или протестировать проект, добавьте соответствующие шаги здесь.
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          script: |
+            cd /путь/на/сервере/к/вашему/приложению
+            git pull origin main
+            # Можно добавить дополнительные команды, например:
+            # npm install && npm run build
+            # systemctl restart myapp
