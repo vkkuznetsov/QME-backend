@@ -22,8 +22,9 @@ jobs:
           username: ${{ secrets.SSH_USERNAME }}
           password: ${{ secrets.SSH_PASSWORD }}
           script: |
-            cd /путь/на/сервере/к/вашему/приложению
-            git pull origin main
-            # Можно добавить дополнительные команды, например:
-            # npm install && npm run build
-            # systemctl restart myapp
+            cd /pr/QME-backend/
+            git pull origin devel
+            make down 
+            make delete
+            make build
+            make up

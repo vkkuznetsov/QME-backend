@@ -1,5 +1,9 @@
 # QME-backend
 Queue for Modeus Electives
 # Команды для запуска
-Описаны в make файле
+Для начала надо сбилдить и запустить образ
+```make
+make build
+make up
+```
 
