@@ -13,14 +13,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # Если требуется собрать или протестировать проект, добавьте соответствующие шаги здесь.
-      - name: Debug variables
-        run: |
-          echo "Host: $INPUT_HOST "
-          echo "Username: ${{ secrets.SSH_HOST }}"
-          echo "Password: ${{ secrets.SSH_PASSWORD }}"
-          echo "SEC test: ${{ secrets.SSH_HOST }}"
-
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v0.1.7
         with:
@@ -29,7 +21,7 @@ jobs:
           password: ${{ secrets.SSH_PASSWORD }}
           script: |
             cd /root/pr/QME-backend
-            git pull origin deploy
+            git pull 
             make down 
             make delete
             make build
