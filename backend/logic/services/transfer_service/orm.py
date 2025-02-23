@@ -2,9 +2,10 @@ from enum import Enum
 
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from backend.database.database import db_session
-from backend.database.models import Elective, Group
+from backend.database.models import Elective, Group, Student
 from backend.database.models.transfer import Transfer
 from backend.logic.services.transfer_service.base import ITransferService
 from logging import getLogger
@@ -23,7 +24,7 @@ class TransferStatus(str, Enum):
 class ORMTransferService(ITransferService):
 
     @db_session
-    async def get_transfer_by_student_id(self, student_id, db: AsyncSession):
+    async def get_transfer_by_student_id(self, student_id: int, db: AsyncSession):
         # Маппинг статусов на русский язык
         status_mapping = {
             "pending": "Ожидается",
@@ -60,7 +61,6 @@ class ORMTransferService(ITransferService):
                             "name": group.name
                         })
 
-            # Преобразуем статус
             raw_status = transfer.status
             translated_status = status_mapping.get(raw_status, "Неизвестный статус")
 
@@ -80,9 +80,38 @@ class ORMTransferService(ITransferService):
 
     @db_session
     async def get_all_transfers(self, db: AsyncSession):
-        query = select(Transfer)
+        FromElective = aliased(Elective)
+        ToElective = aliased(Elective)
+        LectureGroup = aliased(Group)
+        PracticeGroup = aliased(Group)
+        LabGroup = aliased(Group)
+        ConsultationGroup = aliased(Group)
+
+        query = (
+            select(
+                Transfer.id,
+                Student.fio.label("student_fio"),
+                FromElective.name.label("from_elective_name"),
+                ToElective.name.label("to_elective_name"),
+                LectureGroup.name.label("to_lecture_group_name"),
+                PracticeGroup.name.label("to_practice_group_name"),
+                LabGroup.name.label("to_lab_group_name"),
+                ConsultationGroup.name.label("to_consultation_group_name"),
+                Transfer.status,
+                Transfer.priority,
+                Transfer.created_at
+            )
+            .join(Student, Transfer.student_id == Student.id)
+            .join(FromElective, Transfer.from_elective_id == FromElective.id)  # Для from_elective
+            .join(ToElective, Transfer.to_elective_id == ToElective.id)  # Для to_elective
+            .outerjoin(LectureGroup, Transfer.to_lecture_group_id == LectureGroup.id)
+            .outerjoin(PracticeGroup, Transfer.to_practice_group_id == PracticeGroup.id)
+            .outerjoin(LabGroup, Transfer.to_lab_group_id == LabGroup.id)
+            .outerjoin(ConsultationGroup, Transfer.to_consultation_group_id == ConsultationGroup.id)
+        )
+
         result = await db.execute(query)
-        transfers = result.all()
+        transfers = result.mappings().all()
         return transfers
 
     @db_session

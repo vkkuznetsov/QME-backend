@@ -1,9 +1,10 @@
 from logging import getLogger
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
-from starlette.requests import Request
 
 from backend.config import settings
+from backend.parse_choose import parse_file
+
 from backend.database.redis import redis_client
 from backend.logic.services.code_service.redis import RedisCodeService
 from backend.logic.services.sender_service.yandex import YandexSenderService
@@ -60,9 +61,11 @@ class API:
     async def get_elective(self, elective_id: int):
         student_service = ORMStudentService()
         return await student_service.get_groups_students_by_elective(elective_id)
+
     async def get_recomendation(self, direction: str):
         student_service = ORMStudentService()
         return await student_service.get_recomendation(direction)
+
     async def get_elective_groups(self, elective_id: int):
         student_service = ORMStudentService()
         return await student_service.get_groups_by_elective(elective_id)
@@ -72,7 +75,6 @@ class API:
         return await student_service.get_all_electives()
 
     async def handle_student_choices(self, file: UploadFile = File(...)):
-        from backend.parse_choose import parse_file
         await parse_file(file)
         return {"filename": file.filename}
 
@@ -100,23 +102,15 @@ class API:
 
     async def create_transfer(self, data: dict):
         try:
-            student_id = data['student_id']
-            from_elective_id = data['from_elective_id']
-            to_elective_id = data['to_elective_id']
-            to_consultation_group_id = data['to_consultation_group_id']
-            to_lab_group_id = data['to_lab_group_id']
-            to_practice_group_id = data['to_practice_group_id']
-            to_lecture_group_id = data['to_lecture_group_id']
-
             transfer_service = ORMTransferService()
             result = await transfer_service.create_transfer(
-                student_id=student_id,
-                to_lecture_group_id=to_lecture_group_id,
-                to_practice_group_id=to_practice_group_id,
-                to_lab_group_id=to_lab_group_id,
-                to_consultation_group_id=to_consultation_group_id,
-                from_elective_id=from_elective_id,
-                to_elective_id=to_elective_id
+                student_id=data["student_id"],
+                to_lecture_group_id=data['to_lecture_group_id'],
+                to_practice_group_id=data['to_practice_group_id'],
+                to_lab_group_id=data['to_lab_group_id'],
+                to_consultation_group_id=data['to_consultation_group_id'],
+                from_elective_id=data['to_elective_id'],
+                to_elective_id=data['from_elective_id']
             )
             return result
         except ServiceException as e:
