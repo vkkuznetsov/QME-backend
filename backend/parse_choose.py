@@ -4,12 +4,13 @@ import time
 from pathlib import Path
 
 import pandas as pd
-from sqlalchemy import select, exists
+from sqlalchemy import select, update, and_
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
-from sqlalchemy.orm import joinedload
 
+from sqlalchemy.dialects.postgresql import insert
 from backend.config import PROJECT_PATH
 from backend.database.database import Base, db_session
+from backend.database.database import engine
 from backend.database.models.elective import Elective
 from backend.database.models.group import Group
 from backend.database.models.student import Student
@@ -29,98 +30,75 @@ def get_data_frame(df: pd.DataFrame) -> pd.DataFrame:
     return df[df['Дата и причина отчисления'].isna()]
 
 
-async def parse_and_insert_data_with_pandas(students_without_expulsion: pd.DataFrame, session: AsyncSession):
-    for _, row in students_without_expulsion.iterrows():
+async def insert_student_and_electives(students_without_expulsion: pd.DataFrame, session: AsyncSession):
+    unique_students = students_without_expulsion.drop_duplicates(subset=['email'])
+    unique_electives = students_without_expulsion.drop_duplicates(subset=['РМУП название'])
 
-        student_fio = row['Студент ФИО']
-        student_email = row['email']
-        sp_code = row['Код специальности']
-        sp_profile = row['Профиль спецальности']
-        potok = row['Поток обучения']
+    students_data = unique_students.to_dict(orient='records')
+    electives_data = unique_electives.to_dict(orient='records')
 
-        elective_name = row['РМУП название']
+    student_objects = [
+        Student(
+            fio=student['Студент ФИО'],
+            email=student['email'],
+            sp_code=student['Код специальности'],
+            sp_profile=student['Профиль спецальности'],
+            potok=student['Поток обучения']
+        )
+        for student in students_data
+    ]
 
-        result = await session.execute(select(Student).filter_by(email=student_email))
-        student = result.scalars().first()
-        if not student:
-            student = Student(
-                fio=student_fio,
-                email=student_email,
-                sp_code=sp_code,
-                sp_profile=sp_profile,
-                potok=potok,
-            )
-            session.add(student)
-            await session.flush()
-        result = await session.execute(select(Elective).filter_by(name=elective_name))
-        elective = result.scalars().first()
-        if not elective:
-            elective = Elective(name=elective_name)
-            session.add(elective)
+    elective_objects = [
+        Elective(name=elective['РМУП название'])
+        for elective in electives_data
+    ]
+
+    session.add_all(student_objects)
+    session.add_all(elective_objects)
 
     await session.commit()
 
 
 async def parse_and_insert_data_with_pandas2(students_without_expulsion: pd.DataFrame, session: AsyncSession):
-    count = 0
+    student_result = await session.execute(select(Student))
+    student_dict = {s.email: s for s in student_result.scalars()}
+
+    elective_result = await session.execute(select(Elective))
+    elective_dict = {e.name: e for e in elective_result.scalars()}
+
+    gr_set = {}
+    new_groups = []
+    student_group_links = []
+    group_id_counter = 1
+
     for _, row in students_without_expulsion.iterrows():
         student_email = row['email']
         elective_name = row['РМУП название']
+        group_type = row['group_type']
+        group_name = row['group_name']
 
-        result = await session.execute(
-            select(Student)
-            .options(joinedload(Student.groups))
-            .filter_by(email=student_email)
-        )
-        student = result.scalars().first()
+        student = student_dict.get(student_email)
+        elective = elective_dict.get(elective_name)
 
-        result = await session.execute(
-            select(Elective)
-            .options(joinedload(Elective.groups))
-            .filter_by(name=elective_name)
-        )
-        elective = result.scalars().first()
+        if not student or not elective:
+            continue
 
-        group_type = None
+        if group_name not in gr_set:
+            group = Group(name=group_name, type=group_type, capacity=30, elective=elective)
+            new_groups.append(group)
+            gr_set[group_name] = group_id_counter
+            group_id_counter += 1
 
-        for group_field, group_type_name in [
-            ('Лекции', 'Лекции'),
-            ('Практики', 'Практики'),
-            ('Лабораторные', 'Лабораторные'),
-            ('Консультации', 'Консультации'),
-        ]:
-            if pd.notna(row[group_field]):
-                group_type = group_type_name
-                break
-        if group_type is not None:
-            group_name = row[f'{group_type}']
-            result = await session.execute(select(Group).filter_by(name=group_name, type=group_type))
-            group = result.scalars().first()
-            if not group:
-                group = Group(name=group_name, type=group_type, capacity=30)
-                elective.groups.append(group)
-                student.groups.append(group)
-                session.add(group)
-            else:
-                stmt = select(
-                    exists().where(
-                        (student_group.c.student_id == student.id) &
-                        (student_group.c.group_id == group.id)
-                    )
-                )
+        student_group_links.append({"student_id": student.id, "group_id": gr_set[group_name]})
 
-                exists_result = await session.execute(stmt)
-                link_exists = exists_result.scalar()
+    session.add_all(new_groups)
+    await session.flush()
 
-                if not link_exists:
-                    elective.groups.append(group)
-                    student.groups.append(group)
-                    session.add(group)
-        else:
-            count += 1
+    if student_group_links:
+        stmt = insert(student_group).values(student_group_links).on_conflict_do_nothing()
+        await session.execute(stmt)
 
     await session.commit()
-    print(count)
 
 
 async def parse_file(file):
@@ -130,7 +108,7 @@ async def parse_file(file):
 
     filtered_df = get_data_frame(df)
     start_time = time.time()
-    from backend.database.database import engine
+
     await reset_database(engine)
 
     await parse_data_frame(filtered_df)
@@ -197,9 +175,6 @@ async def add_data_to_elective_from_xlsx(db: AsyncSession):
         await db.close()
 
 
-from sqlalchemy import update, and_
-
-
 async def add_cluster(db: AsyncSession):
     """Добавляет данные о кластерах из JSON файла только для тех записей, где cluster не задан"""
     json_path = Path(PROJECT_PATH) / 'data' / 'courses_clusters.json'
@@ -230,18 +205,42 @@ async def add_cluster(db: AsyncSession):
     await db.commit()
 
 
+def filter_groups_df(filtered_df: pd.DataFrame):
+    group_columns = ['Лекции', 'Практики', 'Лабораторные', 'Консультации']
+    df = filtered_df.copy()
+    temp = df[group_columns]
+
+    mask = temp.notna()
+
+    df['group_type'] = mask.idxmax(axis=1)
+    df['group_type'] = df['group_type'].where(mask.any(axis=1), None)
+
+    df['group_name'] = temp.bfill(axis=1).iloc[:, 0]
+    df['group_name'] = df['group_name'].where(mask.any(axis=1), None)
+
+    determined_df = df[df['group_type'].notna()].copy()
+    undetermined_df = df[df['group_type'].isna()].copy()
+
+    return determined_df, undetermined_df
+
+
 @db_session
 async def parse_data_frame(filtered_df, db: AsyncSession):
     t1 = time.time()
-    await parse_and_insert_data_with_pandas(filtered_df, db)
+    await insert_student_and_electives(filtered_df, db)
     t2 = time.time()
-    await parse_and_insert_data_with_pandas2(filtered_df, db)
+    print(t2 - t1)
+
+    df_with_normal_groups, df_broken_groups = filter_groups_df(filtered_df)
+    print('Rabienie')
+    print(time.time() - t2)
+    await parse_and_insert_data_with_pandas2(df_with_normal_groups, db)
     t3 = time.time()
     await add_data_to_elective_from_xlsx(db)
     t4 = time.time()
     await add_cluster(db)
     t5 = time.time()
-    print(t2 - t1)
+
     print(t3 - t2)
     print(t4 - t3)
     print(t5 - t4)
