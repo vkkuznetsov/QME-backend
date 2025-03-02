@@ -7,6 +7,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.config import settings
 
 origins = settings.CORS.origins
+
+
 class App:
 
     def __init__(self):
@@ -14,6 +16,7 @@ class App:
         self.init_logging()
         self._add_middleware()
         self.connect_api()
+        self.add_ignore_warnings()
 
     @staticmethod
     def init_logging():
@@ -28,9 +31,16 @@ class App:
             allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"],
             allow_headers=["*"],
         )
+
     def connect_api(self):
         api = API()
         self.app.include_router(api.router)
         self.app.include_router(healthcheck_router)
+
+    @staticmethod
+    def add_ignore_warnings():
+        import warnings
+        warnings.filterwarnings("ignore", message="Workbook contains no default style")
+
 
 app = App().app

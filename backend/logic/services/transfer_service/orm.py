@@ -1,6 +1,6 @@
 from enum import Enum
 
-from sqlalchemy import select, func
+from sqlalchemy import select, func, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -218,3 +218,14 @@ class ORMTransferService(ITransferService):
         await db.commit()
         await db.refresh(transfer)
         return transfer
+
+    @db_session
+    async def delete_transfer(self, db: AsyncSession, transfer_id: int) -> None:
+        """
+        Удаляет запись о переводе по указанному transfer_id.
+        """
+        await db.execute(
+            delete(Transfer).where(Transfer.id == transfer_id)
+        )
+        await db.commit()
+        return

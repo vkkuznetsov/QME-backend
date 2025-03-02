@@ -3,7 +3,8 @@ from logging import getLogger
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
 from backend.config import settings
-from backend.parse_choose import parse_file
+from backend.logic.services.journal_service.orm import JournalService
+from backend.parse_choose import ChooseFileParser
 
 from backend.database.redis import redis_client
 from backend.logic.services.code_service.redis import RedisCodeService
@@ -48,7 +49,10 @@ class API:
 
         self.router.add_api_route("/transfer", self.create_transfer, methods=["POST"])
         self.router.add_api_route("/transfer", self.get_student_transfers, methods=["GET"])
+        self.router.add_api_route('/transfer/{transfer_id}', self.delete_transfer, methods=['DELETE'])
         self.router.add_api_route("/all_transfer", self.get_all_transfers, methods=["GET"])
+
+        self.router.add_api_route('/journal', self.get_journal, methods=['GET'])
 
     async def get_student(self, email: str):
         student_service = ORMStudentService()
@@ -75,7 +79,12 @@ class API:
         return await student_service.get_all_electives()
 
     async def handle_student_choices(self, file: UploadFile = File(...)):
-        await parse_file(file)
+        await ChooseFileParser.reset_database()
+        journal_service = JournalService()
+        parser = ChooseFileParser(file)
+
+        await journal_service.add_upload_file_record()
+        await parser()
         return {"filename": file.filename}
 
     async def send_otp(self, email: str = Form(...)):
@@ -116,6 +125,11 @@ class API:
         except ServiceException as e:
             raise HTTPException(detail=e.message, status_code=400)
 
+    async def delete_transfer(self, transfer_id: int):
+        transfer_service = ORMTransferService()
+        result = await transfer_service.delete_transfer(transfer_id=transfer_id)
+        return result
+
     async def get_student_transfers(self, student_id: int):
         try:
             transfer_service = ORMTransferService()
@@ -131,3 +145,8 @@ class API:
             return transfers
         except ServiceException as e:
             raise HTTPException(detail=e.message, status_code=400)
+
+    async def get_journal(self):
+        journal_service = JournalService()
+        result = await journal_service.get_all_records()
+        return result

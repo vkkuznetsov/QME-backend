@@ -1,11 +1,10 @@
-import io
 import json
-import time
 from pathlib import Path
 
 import pandas as pd
+from fastapi import UploadFile
 from sqlalchemy import select, update, and_
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from sqlalchemy.dialects.postgresql import insert
 from backend.config import PROJECT_PATH
@@ -16,26 +15,55 @@ from backend.database.models.group import Group
 from backend.database.models.student import Student
 from backend.database.models.student import student_group
 
-
-async def reset_database(engine: AsyncEngine):
-    async with engine.begin() as conn:
-        print("Удаление всех таблиц...")
-        await conn.run_sync(Base.metadata.drop_all)
-        print("Создание таблиц...")
-        await conn.run_sync(Base.metadata.create_all)
-    print("База данных инициализирована.")
+from logging import getLogger
+from backend.utils.time_measure import time_log
+name = __name__
+log = getLogger(name)
 
 
-def get_data_frame(df: pd.DataFrame) -> pd.DataFrame:
-    return df[df['Дата и причина отчисления'].isna()]
+class ChooseFileParser:
+    def __init__(self, file: UploadFile):
+        self.file = file
+        self.db_engine = engine
+        self.raw_df = None
+        self.filtered_df = None
+
+    async def __call__(self):
+        await self.read_file()
+        await self.filter_na()
+
+        await self.reset_database()
+        await self.parse_data_frame()
+
+    async def read_file(self):
+        self.raw_df = pd.read_excel(self.file.file)
+
+    async def filter_na(self) -> None:
+        self.filtered_df = self.raw_df[self.raw_df['Дата и причина отчисления'].isna()]
+
+    @staticmethod
+    async def reset_database():
+        preserved_table_names = ['journal']
+        tables_to_drop = [table for table in Base.metadata.sorted_tables if table.name not in preserved_table_names]
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.drop_all, tables=tables_to_drop)
+            await conn.run_sync(Base.metadata.create_all)
+        log.info("База данных инициализирована.")
+
+    @time_log(name)
+    @db_session
+    async def parse_data_frame(self, db: AsyncSession):
+        await insert_student_and_electives(self.filtered_df, db)
+        df_with_normal_groups, df_broken_groups = filter_groups_df(self.filtered_df)
+        await insert_groups(df_with_normal_groups, db)
+        await add_description_to_elective(db)
+        await add_cluster(db)
 
 
+@time_log(name)
 async def insert_student_and_electives(students_without_expulsion: pd.DataFrame, session: AsyncSession):
-    unique_students = students_without_expulsion.drop_duplicates(subset=['email'])
-    unique_electives = students_without_expulsion.drop_duplicates(subset=['РМУП название'])
-
-    students_data = unique_students.to_dict(orient='records')
-    electives_data = unique_electives.to_dict(orient='records')
+    unique_students = students_without_expulsion.drop_duplicates(subset=['email']).to_dict(orient="records")
+    unique_electives = students_without_expulsion.drop_duplicates(subset=['РМУП название']).to_dict(orient='records')
 
     student_objects = [
         Student(
@@ -45,12 +73,12 @@ async def insert_student_and_electives(students_without_expulsion: pd.DataFrame,
             sp_profile=student['Профиль спецальности'],
             potok=student['Поток обучения']
         )
-        for student in students_data
+        for student in unique_students
     ]
 
     elective_objects = [
         Elective(name=elective['РМУП название'])
-        for elective in electives_data
+        for elective in unique_electives
     ]
 
     session.add_all(student_objects)
@@ -59,7 +87,8 @@ async def insert_student_and_electives(students_without_expulsion: pd.DataFrame,
     await session.commit()
 
 
-async def parse_and_insert_data_with_pandas2(students_without_expulsion: pd.DataFrame, session: AsyncSession):
+@time_log(name)
+async def insert_groups(students_without_expulsion: pd.DataFrame, session: AsyncSession):
     student_result = await session.execute(select(Student))
     student_dict = {s.email: s for s in student_result.scalars()}
 
@@ -80,15 +109,11 @@ async def parse_and_insert_data_with_pandas2(students_without_expulsion: pd.Data
         student = student_dict.get(student_email)
         elective = elective_dict.get(elective_name)
 
-        if not student or not elective:
-            continue
-
         if group_name not in gr_set:
             group = Group(name=group_name, type=group_type, capacity=30, elective=elective)
             new_groups.append(group)
             gr_set[group_name] = group_id_counter
             group_id_counter += 1
-
         student_group_links.append({"student_id": student.id, "group_id": gr_set[group_name]})
 
     session.add_all(new_groups)
@@ -101,80 +126,55 @@ async def parse_and_insert_data_with_pandas2(students_without_expulsion: pd.Data
     await session.commit()
 
 
-async def parse_file(file):
-    contents = await file.read()
-    byttes = io.BytesIO(contents)
-    df = pd.read_excel(byttes)
+@time_log(name)
+async def add_description_to_elective(db: AsyncSession):
+    file_path = Path(PROJECT_PATH) / 'data' / 'parsed_questions.xlsx'
+    df = pd.read_excel(file_path)
+    excel_data = df.set_index('Название').to_dict(orient='index')
 
-    filtered_df = get_data_frame(df)
-    start_time = time.time()
+    optional_columns = {
+        'Ссылка на МУП': 'modeus_link',
+        'Описание расширенное': 'description',
+        'Полный текст образовательного результата': 'text',
+        'Вопросы': 'questions'
+    }
 
-    await reset_database(engine)
+    available_columns = {
+        excel_col: model_field
+        for excel_col, model_field in optional_columns.items()
+        if excel_col in df.columns
+    }
 
-    await parse_data_frame(filtered_df)
+    result = await db.execute(select(Elective))
+    electives = result.scalars().all()
 
-    end = time.time() - start_time
-    print(f"{end}")
+    update_mappings = []
+    for elective in electives:
+        row_data = excel_data.get(elective.name)
+        if not row_data:
+            log.warning(f"Для электива '{elective.name}' нет данных в файле")
+            continue
 
+        mapping = {'id': elective.id}
+        has_changes = False
+        for excel_col, model_field in available_columns.items():
+            value = row_data.get(excel_col)
+            if pd.notna(value):
+                mapping[model_field] = value
+                has_changes = True
 
-async def add_data_to_elective_from_xlsx(db: AsyncSession):
-    try:
-        file_path = Path(PROJECT_PATH) / 'data' / 'parsed_questions.xlsx'
-        df = pd.read_excel(file_path, engine='openpyxl')
+        if has_changes:
+            update_mappings.append(mapping)
 
-        excel_data = df.set_index('Название').to_dict(orient='index')
-
-        optional_columns = {
-            'Ссылка на МУП': 'modeus_link',
-            'Описание расширенное': 'description',
-            'Полный текст образовательного результата': 'text',
-            'Вопросы': 'questions'
-        }
-
-        available_columns = {
-            excel_col: model_field
-            for excel_col, model_field in optional_columns.items()
-            if excel_col in df.columns
-        }
-
-        result = await db.execute(select(Elective))
-        electives = result.scalars().all()
-
-        updated_count = 0
-        for elective in electives:
-            row_data = excel_data.get(elective.name)
-
-            if not row_data:
-                print(f"Предупреждение: Для электива '{elective.name}' нет данных в файле")
-                continue
-
-            has_changes = False
-
-            for excel_col, model_field in available_columns.items():
-                value = row_data.get(excel_col)
-
-                if pd.notna(value):
-                    current_value = getattr(elective, model_field)
-                    if current_value != value:
-                        setattr(elective, model_field, value)
-                        has_changes = True
-                else:
-                    print(f"Предупреждение: Пустое значение для '{excel_col}' у электива '{elective.name}'")
-
-            if has_changes:
-                updated_count += 1
-                await db.commit()
-
-        print(f"Всего обработано элективов: {len(electives)}")
-        print(f"Обновлено записей: {updated_count}")
-
-    except Exception as e:
-        print(f"Критическая ошибка: {str(e)}")
-        await db.rollback()
-    finally:
-        await db.close()
+    if update_mappings:
+        await db.execute(
+            update(Elective),
+            update_mappings
+        )
+        await db.commit()
 
 
+@time_log(name)
 async def add_cluster(db: AsyncSession):
     """Добавляет данные о кластерах из JSON файла только для тех записей, где cluster не задан"""
     json_path = Path(PROJECT_PATH) / 'data' / 'courses_clusters.json'
@@ -184,9 +184,7 @@ async def add_cluster(db: AsyncSession):
 
     cluster_mapping = {item["name"]: item["cluster"] for item in clusters_data}
 
-    result = await db.execute(
-        select(Elective).where(Elective.cluster.is_(None))
-    )
+    result = await db.execute(select(Elective))
     electives = result.scalars().all()
 
     updated_count = 0
@@ -205,6 +203,7 @@ async def add_cluster(db: AsyncSession):
     await db.commit()
 
 
+@time_log(name)
 def filter_groups_df(filtered_df: pd.DataFrame):
     group_columns = ['Лекции', 'Практики', 'Лабораторные', 'Консультации']
     df = filtered_df.copy()
@@ -222,25 +221,3 @@ def filter_groups_df(filtered_df: pd.DataFrame):
     undetermined_df = df[df['group_type'].isna()].copy()
 
     return determined_df, undetermined_df
-
-
-@db_session
-async def parse_data_frame(filtered_df, db: AsyncSession):
-    t1 = time.time()
-    await insert_student_and_electives(filtered_df, db)
-    t2 = time.time()
-    print(t2 - t1)
-
-    df_with_normal_groups, df_broken_groups = filter_groups_df(filtered_df)
-    print('Rabienie')
-    print(time.time() - t2)
-    await parse_and_insert_data_with_pandas2(df_with_normal_groups, db)
-    t3 = time.time()
-    await add_data_to_elective_from_xlsx(db)
-    t4 = time.time()
-    await add_cluster(db)
-    t5 = time.time()
-
-    print(t3 - t2)
-    print(t4 - t3)
-    print(t5 - t4)
