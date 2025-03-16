@@ -34,7 +34,7 @@ class ORMStudentService(IStudentService):
                 Elective.cluster,
                 Elective.id,
                 Elective.name,
-                func.count(Student.id.distinct()).label('course_student_count')
+                func.count(Student.id.distinct()).label("course_student_count"),
             )
             .select_from(Student)
             .join(student_group)
@@ -46,20 +46,20 @@ class ORMStudentService(IStudentService):
         )
 
         # Затем агрегируем по кластерам
-        stmt = (
-            select(
-                subquery.c.cluster,
-                func.sum(subquery.c.course_student_count).label('total_students'),
-                func.json_agg(
-                    func.json_build_object(
-                        'id', subquery.c.id,
-                        'name', subquery.c.name,
-                        'student_count', subquery.c.course_student_count
-                    )
-                ).label('courses')
-            )
-            .group_by(subquery.c.cluster)
-        )
+        stmt = select(
+            subquery.c.cluster,
+            func.sum(subquery.c.course_student_count).label("total_students"),
+            func.json_agg(
+                func.json_build_object(
+                    "id",
+                    subquery.c.id,
+                    "name",
+                    subquery.c.name,
+                    "student_count",
+                    subquery.c.course_student_count,
+                )
+            ).label("courses"),
+        ).group_by(subquery.c.cluster)
 
         result = await db.execute(stmt)
         clusters_data = result.all()
@@ -68,32 +68,32 @@ class ORMStudentService(IStudentService):
         for cluster, students_count, courses in clusters_data:
             sorted_courses = sorted(
                 [dict(c) for c in courses],
-                key=lambda x: x['student_count'],
-                reverse=True
+                key=lambda x: x["student_count"],
+                reverse=True,
             )[:5]
 
             cluster_percent = round((students_count / total_students) * 100, 1)
             if cluster_percent <= 0:
                 continue
 
-            recommendations.append({
-                "name": cluster,
-                "percent": cluster_percent,
-                "totalStudents": students_count,
-                "topCourses": [
-                    {
-                        **course,
-                        "percent": round((course['student_count'] / total_students) * 100, 1)
-                    }
-                    for course in sorted_courses
-                ]
-            })
+            recommendations.append(
+                {
+                    "name": cluster,
+                    "percent": cluster_percent,
+                    "totalStudents": students_count,
+                    "topCourses": [
+                        {
+                            **course,
+                            "percent": round(
+                                (course["student_count"] / total_students) * 100, 1
+                            ),
+                        }
+                        for course in sorted_courses
+                    ],
+                }
+            )
 
-        return sorted(
-            recommendations,
-            key=lambda x: x['percent'],
-            reverse=True
-        )[:5]
+        return sorted(recommendations, key=lambda x: x["percent"], reverse=True)[:5]
 
     @db_session
     async def get_groups_by_elective(self, elective_id: int, db: AsyncSession):
@@ -112,10 +112,7 @@ class ORMStudentService(IStudentService):
     async def get_student_group_elective_email(self, student_email, db: AsyncSession):
         query = (
             select(Student)
-            .options(
-                joinedload(Student.groups)
-                .joinedload(Group.elective)
-            )
+            .options(joinedload(Student.groups).joinedload(Group.elective))
             .where(Student.email == student_email)
         )
 
@@ -127,12 +124,8 @@ class ORMStudentService(IStudentService):
 
     @db_session
     async def get_all_student_group_elective_email(self, db: AsyncSession):
-        query = (
-            select(Student)
-            .options(
-                joinedload(Student.groups)
-                .joinedload(Group.elective)
-            )
+        query = select(Student).options(
+            joinedload(Student.groups).joinedload(Group.elective)
         )
 
         result = await db.execute(query)
@@ -145,10 +138,7 @@ class ORMStudentService(IStudentService):
     async def get_groups_students_by_elective(self, id_elective: int, db: AsyncSession):
         query = (
             select(Elective)
-            .options(
-                joinedload(Elective.groups)
-                .joinedload(Group.students)
-            )
+            .options(joinedload(Elective.groups).joinedload(Group.students))
             .where(Elective.id == id_elective)
         )
 
@@ -161,24 +151,64 @@ class ORMStudentService(IStudentService):
 
     @db_session
     async def get_all_electives(self, db: AsyncSession):
+        # Подзапрос для подсчета студентов в каждой группе
+        student_count_subq = (
+            select(
+                student_group.c.group_id,
+                func.count(student_group.c.student_id).label("student_count"),
+            )
+            .group_by(student_group.c.group_id)
+            .subquery()
+        )
 
+        # Подзапрос для расчета свободных мест в каждой группе
+        group_free_spots_subq = (
+            select(
+                Group.elective_id,
+                (
+                    Group.capacity
+                    - func.coalesce(student_count_subq.c.student_count, 0)
+                ).label("group_free_spots"),
+            )
+            .outerjoin(student_count_subq, Group.id == student_count_subq.c.group_id)
+            .subquery()
+        )
+
+        # Подзапрос для нахождения минимального количества свободных мест по элективам
+        min_free_spots_subq = (
+            select(
+                group_free_spots_subq.c.elective_id,
+                func.min(group_free_spots_subq.c.group_free_spots).label(
+                    "min_free_spots"
+                ),
+            )
+            .group_by(group_free_spots_subq.c.elective_id)
+            .subquery()
+        )
+
+        # Основной запрос
         query = (
             select(
                 Elective.id,
                 Elective.name,
-                Elective.cluster
+                Elective.cluster,
+                func.coalesce(min_free_spots_subq.c.min_free_spots, 0).label(
+                    "free_spots"
+                ),
+            )
+            .outerjoin(
+                min_free_spots_subq, Elective.id == min_free_spots_subq.c.elective_id
             )
             .order_by(
-                Elective.cluster.is_not(None).desc(),
-                Elective.cluster,
-                Elective.name
+                Elective.cluster.is_not(None).desc(), Elective.cluster, Elective.name
             )
         )
 
+        # Выполнение запроса и форматирование результата
         result = await db.execute(query)
         electives = [
-            {"id": id, "name": name, "cluster": cluster}
-            for id, name, cluster in result.all()
+            {"id": id, "name": name, "cluster": cluster, "free_spots": free_spots}
+            for id, name, cluster, free_spots in result.all()
         ]
 
         return electives
