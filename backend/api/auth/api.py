@@ -36,23 +36,39 @@ class API:
     def _setup_routes(self):
         self.router.add_api_route("/student_info", self.get_student, methods=["GET"])
         self.router.add_api_route("/students", self.get_students, methods=["GET"])
-        self.router.add_api_route("/elective/{elective_id}", self.get_elective, methods=["GET"])
-        self.router.add_api_route("/elective/{elective_id}/groups", self.get_elective_groups, methods=["GET"])
-        self.router.add_api_route("/all_elective", self.get_all_elective, methods=["GET"])
+        self.router.add_api_route(
+            "/elective/{elective_id}", self.get_elective, methods=["GET"]
+        )
+        self.router.add_api_route(
+            "/elective/{elective_id}/groups", self.get_elective_groups, methods=["GET"]
+        )
+        self.router.add_api_route(
+            "/all_elective", self.get_all_elective, methods=["GET"]
+        )
 
-        self.router.add_api_route("/recomendation/{direction}", self.get_recomendation, methods=["GET"])
+        self.router.add_api_route(
+            "/recomendation/{direction}", self.get_recomendation, methods=["GET"]
+        )
 
-        self.router.add_api_route("/upload/student-choices", self.handle_student_choices, methods=["POST"])
+        self.router.add_api_route(
+            "/upload/student-choices", self.handle_student_choices, methods=["POST"]
+        )
 
         self.router.add_api_route("/auth/send-otp", self.send_otp, methods=["POST"])
         self.router.add_api_route("/auth/verify-otp", self.verify_otp, methods=["POST"])
 
         self.router.add_api_route("/transfer", self.create_transfer, methods=["POST"])
-        self.router.add_api_route("/transfer", self.get_student_transfers, methods=["GET"])
-        self.router.add_api_route('/transfer/{transfer_id}', self.delete_transfer, methods=['DELETE'])
-        self.router.add_api_route("/all_transfer", self.get_all_transfers, methods=["GET"])
+        self.router.add_api_route(
+            "/transfer", self.get_student_transfers, methods=["GET"]
+        )
+        self.router.add_api_route(
+            "/transfer/{transfer_id}", self.delete_transfer, methods=["DELETE"]
+        )
+        self.router.add_api_route(
+            "/all_transfer", self.get_all_transfers, methods=["GET"]
+        )
 
-        self.router.add_api_route('/journal', self.get_journal, methods=['GET'])
+        self.router.add_api_route("/journal", self.get_journal, methods=["GET"])
 
     async def get_student(self, email: str):
         student_service = ORMStudentService()
@@ -93,7 +109,9 @@ class API:
             sender_service = YandexSenderService()
             code_service = RedisCodeService(redis_client)
 
-            await AuthorizeCodeUseCase(student_service, sender_service, code_service).execute(email)
+            await AuthorizeCodeUseCase(
+                student_service, sender_service, code_service
+            ).execute(email)
             return {"message": f"sent successfully to {email}"}
         except ServiceException as e:
             return HTTPException(detail=e.message, status_code=400)
@@ -114,12 +132,12 @@ class API:
             transfer_service = ORMTransferService()
             result = await transfer_service.create_transfer(
                 student_id=data["student_id"],
-                to_lecture_group_id=data['to_lecture_group_id'],
-                to_practice_group_id=data['to_practice_group_id'],
-                to_lab_group_id=data['to_lab_group_id'],
-                to_consultation_group_id=data['to_consultation_group_id'],
-                from_elective_id=data['to_elective_id'],
-                to_elective_id=data['from_elective_id']
+                to_lecture_group_id=data["to_lecture_group_id"],
+                to_practice_group_id=data["to_practice_group_id"],
+                to_lab_group_id=data["to_lab_group_id"],
+                to_consultation_group_id=data["to_consultation_group_id"],
+                from_elective_id=data["from_elective_id"],
+                to_elective_id=data["to_elective_id"],
             )
             return result
         except ServiceException as e:
