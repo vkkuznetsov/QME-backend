@@ -1,12 +1,10 @@
-from enum import Enum
-
-from sqlalchemy import select, func, delete
+from sqlalchemy import select, func, delete, insert
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import aliased
+from sqlalchemy.orm import selectinload
 
 from backend.database.database import db_session
 from backend.database.models import Elective, Group, Student
-from backend.database.models.transfer import Transfer
+from backend.database.models.transfer import Transfer, TransferStatus, transfer_group, GroupRole
 from backend.logic.services.transfer_service.base import ITransferService
 from logging import getLogger
 
@@ -15,122 +13,98 @@ from backend.logic.services.zexceptions.orm import AlreadyExistsTransfer
 logger = getLogger(__name__)
 
 
-class TransferStatus(str, Enum):
-    PENDING = "pending"
-    APPROVED = "approved"
-    REJECTED = "rejected"
-
-
 class ORMTransferService(ITransferService):
 
     @db_session
     async def get_transfer_by_student_id(self, student_id: int, db: AsyncSession):
-        # Маппинг статусов на русский язык
-        status_mapping = {
-            "pending": "Ожидается",
-            "rejected": "Отклонено",
-            "approved": "Одобрено"
-        }
-
-        transfers_result = await db.execute(
-            select(Transfer).where(Transfer.student_id == student_id)
+        stmt = (
+            select(Transfer)
+            .where(Transfer.student_id == student_id)
+            .options(
+                selectinload(Transfer.from_elective),
+                selectinload(Transfer.to_elective),
+                selectinload(Transfer.groups_to),
+            )
         )
-        transfers = transfers_result.scalars().all()
 
+        transfers = (await db.execute(stmt)).scalars().all()
         result = []
+
         for transfer in transfers:
-            from_elective = await db.get(Elective, transfer.from_elective_id)
-            to_elective = await db.get(Elective, transfer.to_elective_id)
-
-            selected_groups = []
-
-            group_mapping = [
-                (transfer.to_lecture_group_id, "лекция", Group),
-                (transfer.to_practice_group_id, "практика", Group),
-                (transfer.to_lab_group_id, "лабораторные", Group),
-                (transfer.to_consultation_group_id, "консультация", Group)
+            selected_groups = [
+                {
+                    "id": group.id,
+                    "type": getattr(group, "type", "неизвестно"),
+                    "name": group.name,
+                }
+                for group in transfer.groups_to
             ]
 
-            for group_id, group_type, model in group_mapping:
-                if group_id:
-                    group = await db.get(model, group_id)
-                    if group:
-                        selected_groups.append({
-                            "id": group.id,
-                            "type": group_type,
-                            "name": group.name
-                        })
+            try:
+                ts = TransferStatus(transfer.status)
+            except ValueError:
+                ts = None
 
-            raw_status = transfer.status
-            translated_status = status_mapping.get(raw_status, "Неизвестный статус")
+            translated_status = {
+                TransferStatus.pending:   "Ожидается",
+                TransferStatus.approved:  "Одобрено",
+                TransferStatus.rejected:  "Отклонено",
+            }.get(ts, "Неизвестный статус")
 
             result.append({
                 "id": transfer.id,
                 "userId": transfer.student_id,
                 "electiveId": transfer.to_elective_id,
                 "sourceElectiveId": transfer.from_elective_id,
-                "sourceElectiveName": from_elective.name if from_elective else "Неизвестный электив",
-                "electiveName": to_elective.name if to_elective else "Неизвестный электив",
+                "sourceElectiveName": transfer.from_elective.name if transfer.from_elective else "Неизвестный электив",
+                "electiveName": transfer.to_elective.name if transfer.to_elective else "Неизвестный электив",
                 "selectedGroups": selected_groups,
-                "status": translated_status,  # Используем переведенный статус
-                "priority": transfer.priority
+                "status": translated_status,
+                "priority": transfer.priority,
             })
 
         return result
 
     @db_session
     async def get_all_transfers(self, db: AsyncSession):
-        FromElective = aliased(Elective)
-        ToElective = aliased(Elective)
-        LectureGroup = aliased(Group)
-        PracticeGroup = aliased(Group)
-        LabGroup = aliased(Group)
-        ConsultationGroup = aliased(Group)
-
-        query = (
-            select(
-                Transfer.id,
-                Student.fio.label("student_fio"),
-                FromElective.name.label("from_elective_name"),
-                ToElective.name.label("to_elective_name"),
-                LectureGroup.name.label("to_lecture_group_name"),
-                PracticeGroup.name.label("to_practice_group_name"),
-                LabGroup.name.label("to_lab_group_name"),
-                ConsultationGroup.name.label("to_consultation_group_name"),
-                Transfer.status,
-                Transfer.priority,
-                Transfer.created_at
-            )
-            .join(Student, Transfer.student_id == Student.id)
-            .join(FromElective, Transfer.from_elective_id == FromElective.id)  # Для from_elective
-            .join(ToElective, Transfer.to_elective_id == ToElective.id)  # Для to_elective
-            .outerjoin(LectureGroup, Transfer.to_lecture_group_id == LectureGroup.id)
-            .outerjoin(PracticeGroup, Transfer.to_practice_group_id == PracticeGroup.id)
-            .outerjoin(LabGroup, Transfer.to_lab_group_id == LabGroup.id)
-            .outerjoin(ConsultationGroup, Transfer.to_consultation_group_id == ConsultationGroup.id)
+        query = select(Transfer).options(
+            selectinload(Transfer.student),
+            selectinload(Transfer.from_elective),
+            selectinload(Transfer.to_elective),
+            selectinload(Transfer.groups_from),
+            selectinload(Transfer.groups_to)
         )
-
         result = await db.execute(query)
-        transfers = result.mappings().all()
-        return transfers
+        transfers = result.scalars().all()
+        
+        result_list = []
+        for transfer in transfers:
+            result_list.append({
+                "id": transfer.id,
+                "student_fio": transfer.student.fio,
+                "from_elective_name": transfer.from_elective.name,
+                "to_elective_name": transfer.to_elective.name,
+                "groups_from": [(group.name, group.type) for group in transfer.groups_from],
+                "groups_to": [(group.name, group.type) for group in transfer.groups_to],
+                "status": transfer.status,
+                "priority": transfer.priority,
+                "created_at": transfer.created_at.isoformat() if transfer.created_at else None
+            })
+        return result_list
 
     @db_session
     async def create_transfer(self, student_id: int,
-                              to_lecture_group_id: int | None,
-                              to_practice_group_id: int | None,
-                              to_lab_group_id: int | None,
-                              to_consultation_group_id: int | None,
                               from_elective_id: int,
                               to_elective_id: int,
+                              groups_from_ids: list[int],
+                              groups_to_ids: list[int],
                               db: AsyncSession):
 
         if await self._check_existing_transfer(
                 db=db,
                 student_id=student_id,
-                to_lecture_group_id=to_lecture_group_id,
-                to_practice_group_id=to_practice_group_id,
-                to_lab_group_id=to_lab_group_id,
-                to_consultation_group_id=to_consultation_group_id,
+                groups_from_ids=groups_from_ids,
+                groups_to_ids=groups_to_ids,
                 from_elective_id=from_elective_id,
                 to_elective_id=to_elective_id
         ):
@@ -146,10 +120,8 @@ class ORMTransferService(ITransferService):
         return await self._create_new_transfer(
             db=db,
             student_id=student_id,
-            to_lecture_group_id=to_lecture_group_id,
-            to_practice_group_id=to_practice_group_id,
-            to_lab_group_id=to_lab_group_id,
-            to_consultation_group_id=to_consultation_group_id,
+            groups_from_ids=groups_from_ids,
+            groups_to_ids=groups_to_ids,
             from_elective_id=from_elective_id,
             to_elective_id=to_elective_id,
             priority=priority
@@ -157,27 +129,28 @@ class ORMTransferService(ITransferService):
 
     @staticmethod
     async def _check_existing_transfer(db: AsyncSession, student_id: int,
-                                       to_lecture_group_id: int | None,
-                                       to_practice_group_id: int | None,
-                                       to_lab_group_id: int | None,
-                                       to_consultation_group_id: int | None,
+                                       groups_from_ids: list[int],
+                                       groups_to_ids: list[int],
                                        from_elective_id: int,
                                        to_elective_id: int) -> bool:
         """
         Проверяет, существует ли уже такая заявка.
+        Сравнивает заявки по student_id, from_elective_id, to_elective_id, а также по наборам групп (из которых и в которые производится перевод).
         """
-        existing_transfer = await db.execute(
+        result = await db.execute(
             select(Transfer).where(
                 Transfer.student_id == student_id,
-                Transfer.to_lecture_group_id == to_lecture_group_id,
-                Transfer.to_practice_group_id == to_practice_group_id,
-                Transfer.to_lab_group_id == to_lab_group_id,
-                Transfer.to_consultation_group_id == to_consultation_group_id,
                 Transfer.from_elective_id == from_elective_id,
                 Transfer.to_elective_id == to_elective_id
             )
         )
-        return existing_transfer.scalars().first() is not None
+        transfers = result.scalars().all()
+        for transfer in transfers:
+            existing_groups_from = {group.id for group in transfer.groups_from}
+            existing_groups_to = {group.id for group in transfer.groups_to}
+            if existing_groups_from == set(groups_from_ids) and existing_groups_to == set(groups_to_ids):
+                return True
+        return False
 
     @staticmethod
     async def _calculate_priority(db: AsyncSession, student_id: int, from_elective_id: int) -> int:
@@ -193,23 +166,24 @@ class ORMTransferService(ITransferService):
         return priority_query.scalar() + 1
 
     @staticmethod
-    async def _create_new_transfer(db: AsyncSession, student_id: int,
-                                   to_lecture_group_id: int | None,
-                                   to_practice_group_id: int | None,
-                                   to_lab_group_id: int | None,
-                                   to_consultation_group_id: int | None,
-                                   from_elective_id: int,
-                                   to_elective_id: int,
-                                   priority: int) -> Transfer:
+    async def _create_new_transfer(
+        db: AsyncSession,
+        student_id: int,
+        groups_from_ids: list[int],
+        groups_to_ids: list[int],
+        from_elective_id: int,
+        to_elective_id: int,
+        priority: int
+    ) -> Transfer:
         """
-        Создает новую запись Transfer в базе данных.
+        Создает новую запись Transfer в базе данных и записывает ассоциации с группами.
+        
+        Параметры:
+        - groups_from_ids: список id групп, из которых производится перевод.
+        - groups_to_ids: список id групп, в которые производится перевод.
         """
         transfer = Transfer(
             student_id=student_id,
-            to_lecture_group_id=to_lecture_group_id,
-            to_practice_group_id=to_practice_group_id,
-            to_lab_group_id=to_lab_group_id,
-            to_consultation_group_id=to_consultation_group_id,
             from_elective_id=from_elective_id,
             to_elective_id=to_elective_id,
             priority=priority
@@ -217,6 +191,24 @@ class ORMTransferService(ITransferService):
         db.add(transfer)
         await db.commit()
         await db.refresh(transfer)
+
+        for group_id in groups_from_ids:
+            stmt = insert(transfer_group).values(
+                transfer_id=transfer.id,
+                group_id=group_id,
+                group_role=GroupRole.FROM
+            )
+            await db.execute(stmt)
+
+        for group_id in groups_to_ids:
+            stmt = insert(transfer_group).values(
+                transfer_id=transfer.id,
+                group_id=group_id,
+                group_role=GroupRole.TO
+            )
+            await db.execute(stmt)
+
+        await db.commit()
         return transfer
 
     @db_session
@@ -228,4 +220,23 @@ class ORMTransferService(ITransferService):
             delete(Transfer).where(Transfer.id == transfer_id)
         )
         await db.commit()
+        return
+
+    @db_session
+    async def _change_transfer_status(self, transfer_id: int, status: TransferStatus, db: AsyncSession):
+
+        """
+        Изменяет статус заявки на указанный.
+        """
+        transfer = await db.get(Transfer, transfer_id)
+        if transfer is None:
+            raise Exception(f"Transfer with id {transfer_id} не найден")
+        transfer.status = status.value
+        await db.commit()
+        await db.refresh(transfer)
+        return transfer
+    
+    @db_session
+    async def approve_transfer(self, transfer_id: int, db: AsyncSession):
+        
         return

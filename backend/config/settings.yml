@@ -13,7 +13,7 @@ default:
 
   DATABASE:
     DRIVER: postgresql+asyncpg
-    HOST: db
+    HOST: localhost
     PORT: 5432
     USER: postgres
     PASSWORD: postgres

@@ -182,3 +182,17 @@ class ORMStudentService(IStudentService):
         ]
 
         return electives
+
+    @db_session
+    async def get_student_groups_for_elective(self, student_id: int, elective_id: int, db: AsyncSession) -> list[Group]:
+        query = (
+            select(Group)
+            .join(student_group)
+            .where(
+                student_group.c.student_id == student_id,
+                Group.elective_id == elective_id
+            )
+        )
+        result = await db.execute(query)
+        groups = result.unique().scalars().all()
+        return groups

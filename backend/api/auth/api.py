@@ -13,6 +13,7 @@ from backend.logic.services.student_service.orm import ORMStudentService
 from backend.logic.services.zexceptions.base import ServiceException
 from backend.logic.use_cases.authorize_code import AuthorizeCodeUseCase
 from backend.logic.use_cases.confirm_code import ConfirmCodeUseCase
+from backend.logic.use_cases.create_transfer import CreateTransferUseCase
 from backend.logic.services.transfer_service.orm import ORMTransferService
 
 log = getLogger(__name__)
@@ -110,16 +111,21 @@ class API:
             raise HTTPException(detail=e.message, status_code=404)
 
     async def create_transfer(self, data: dict):
+        log.error(data)
+        log.error(data['groups_to_ids'])
+        log.error(data['student_id'])
+        log.error(data['from_elective_id'])
+        log.error(data['to_elective_id'])
         try:
+            student_service = ORMStudentService()
             transfer_service = ORMTransferService()
-            result = await transfer_service.create_transfer(
-                student_id=data["student_id"],
-                to_lecture_group_id=data['to_lecture_group_id'],
-                to_practice_group_id=data['to_practice_group_id'],
-                to_lab_group_id=data['to_lab_group_id'],
-                to_consultation_group_id=data['to_consultation_group_id'],
-                from_elective_id=data['to_elective_id'],
-                to_elective_id=data['from_elective_id']
+
+            
+            result = await CreateTransferUseCase(student_service, transfer_service).execute(
+                student_id=data['student_id'],
+                from_elective_id=data['from_elective_id'],
+                to_elective_id=data['to_elective_id'],
+                groups_to_ids=data.get('groups_to_ids')
             )
             return result
         except ServiceException as e:
