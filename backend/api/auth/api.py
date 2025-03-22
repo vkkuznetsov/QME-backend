@@ -4,6 +4,7 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
 from backend.config import settings
 from backend.logic.services.journal_service.orm import JournalService
+from backend.logic.services.transfer_service.schemas import TransferData
 from backend.parse_choose import ChooseFileParser
 
 from backend.database.redis import redis_client
@@ -110,22 +111,16 @@ class API:
         except ServiceException as e:
             raise HTTPException(detail=e.message, status_code=404)
 
-    async def create_transfer(self, data: dict):
-        log.error(data)
-        log.error(data['groups_to_ids'])
-        log.error(data['student_id'])
-        log.error(data['from_elective_id'])
-        log.error(data['to_elective_id'])
+    async def create_transfer(self, transfer: TransferData):
         try:
             student_service = ORMStudentService()
             transfer_service = ORMTransferService()
 
-            
             result = await CreateTransferUseCase(student_service, transfer_service).execute(
-                student_id=data['student_id'],
-                from_elective_id=data['from_elective_id'],
-                to_elective_id=data['to_elective_id'],
-                groups_to_ids=data.get('groups_to_ids')
+                student_id=transfer.student_id,
+                from_elective_id=transfer.from_elective_id,
+                to_elective_id=transfer.to_elective_id,
+                groups_to_ids=transfer.groups_to_ids
             )
             return result
         except ServiceException as e:
