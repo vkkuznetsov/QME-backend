@@ -11,5 +11,13 @@ class ITransferService(ABC):
         ...
 
     @abstractmethod
-    async def create_transfer(self, student_id: int, to_lecture_group_id: int | None, to_practice_group_id: int | None, to_lab_group_id: int | None, to_consultation_group_id: int | None, from_elective_id: int, to_elective_id: int):
+    async def create_transfer(self, student_id: int,
+                              from_elective_id: int,
+                              to_elective_id: int,
+                              groups_from_ids: list[int],
+                              groups_to_ids: list[int]):
         ...
+
+    @abstractmethod
+    async def approve_transfer(self, transfer_id: int):
+        ... 
