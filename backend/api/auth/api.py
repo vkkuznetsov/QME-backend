@@ -53,6 +53,8 @@ class API:
         self.router.add_api_route("/transfer", self.get_student_transfers, methods=["GET"])
         self.router.add_api_route('/transfer/{transfer_id}', self.delete_transfer, methods=['DELETE'])
         self.router.add_api_route("/all_transfer", self.get_all_transfers, methods=["GET"])
+        self.router.add_api_route("/transfer/approve/{transfer_id}", self.approve_transfer, methods=["POST"])
+        self.router.add_api_route("/transfer/reject/{transfer_id}", self.reject_transfer, methods=["POST"])
 
         self.router.add_api_route('/journal', self.get_journal, methods=['GET'])
 
@@ -146,6 +148,16 @@ class API:
             return transfers
         except ServiceException as e:
             raise HTTPException(detail=e.message, status_code=400)
+
+    async def approve_transfer(self, transfer_id: int):
+        transfer_service = ORMTransferService()
+        result = await transfer_service.approve_transfer(transfer_id)
+        return result
+
+    async def reject_transfer(self, transfer_id: int):
+        transfer_service = ORMTransferService()
+        result = await transfer_service.reject_transfer(transfer_id)
+        return result
 
     async def get_journal(self):
         journal_service = JournalService()

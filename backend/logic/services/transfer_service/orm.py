@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from backend.database.database import db_session
-from backend.database.models import Elective, Group, Student
+from backend.database.models import Elective, Group, Student, student_group
 from backend.database.models.transfer import Transfer, TransferStatus, transfer_group, GroupRole
 from backend.logic.services.transfer_service.base import ITransferService
 from logging import getLogger
@@ -224,7 +224,6 @@ class ORMTransferService(ITransferService):
 
     @db_session
     async def _change_transfer_status(self, transfer_id: int, status: TransferStatus, db: AsyncSession):
-
         """
         Изменяет статус заявки на указанный.
         """
@@ -238,5 +237,63 @@ class ORMTransferService(ITransferService):
     
     @db_session
     async def approve_transfer(self, transfer_id: int, db: AsyncSession):
+        """
+        Одобряет заявку на перевод, обновляя связи студента с группами.
+        При одобрении заявки отклоняет все другие заявки этого студента с того же исходного электива.
+        """
+        transfer = await db.get(Transfer, transfer_id)
+        student = await db.get(Student, transfer.student_id)
+
+        # Отклоняем другие заявки с того же исходного электива
+        stmt = (
+            select(Transfer)
+            .where(
+                Transfer.student_id == student.id,
+                Transfer.from_elective_id == transfer.from_elective_id,
+                Transfer.id != transfer_id,
+                Transfer.status != TransferStatus.approved.value
+            )
+        )
+        other_transfers = (await db.execute(stmt)).scalars().all()
+        for other_transfer in other_transfers:
+            await self._change_transfer_status(other_transfer.id, TransferStatus.rejected)
+
+        # Удаляем старые связи студента с группами from_elective
+        stmt = delete(student_group).where(
+            student_group.c.group_id.in_(
+                select(transfer_group.c.group_id).where(
+                    transfer_group.c.transfer_id == transfer_id,
+                    transfer_group.c.group_role == GroupRole.FROM
+                )
+            ),
+            student_group.c.student_id == student.id
+        )
+        await db.execute(stmt)
+
+        # Добавляем новые связи студента с группами to_elective
+        stmt = (
+            select(Group)
+            .join(transfer_group)
+            .where(
+                transfer_group.c.transfer_id == transfer_id,
+                transfer_group.c.group_role == GroupRole.TO
+            )
+        )
+        groups = (await db.execute(stmt)).scalars().all()
         
-        return
+        for group in groups:
+            stmt = insert(student_group).values(
+                student_id=student.id,
+                group_id=group.id
+            )
+            await db.execute(stmt)
+
+        await self._change_transfer_status(transfer_id, TransferStatus.approved)
+        
+        await db.commit()
+        await db.refresh(student)
+        
+        return transfer
+    
+    async def reject_transfer(self, transfer_id: int):
+        await self._change_transfer_status(transfer_id, TransferStatus.rejected)
