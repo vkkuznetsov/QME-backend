@@ -1,4 +1,6 @@
-from sqlalchemy import select, func, delete, insert
+from typing import List
+
+from sqlalchemy import select, func, delete, insert, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -8,6 +10,7 @@ from backend.database.models.transfer import Transfer, TransferStatus, transfer_
 from backend.logic.services.transfer_service.base import ITransferService
 from logging import getLogger
 
+from backend.logic.services.transfer_service.schemas import TransferReorder
 from backend.logic.services.zexceptions.orm import AlreadyExistsTransfer
 
 logger = getLogger(__name__)
@@ -297,3 +300,15 @@ class ORMTransferService(ITransferService):
     
     async def reject_transfer(self, transfer_id: int):
         await self._change_transfer_status(transfer_id, TransferStatus.rejected)
+
+    @staticmethod
+    @db_session
+    async def reorder_transfers(new_orders: List[TransferReorder], db: AsyncSession):
+        for order in new_orders:
+            stmt = (
+                update(Transfer)
+                .where(Transfer.id == order.id)
+                .values(priority=order.priority)
+            )
+            await db.execute(stmt)
+        await db.commit()

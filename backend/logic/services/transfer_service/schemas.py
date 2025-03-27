@@ -6,3 +6,7 @@ class TransferData(BaseModel):
     from_elective_id: int
     to_elective_id: int
     groups_to_ids: List[int]
+
+class TransferReorder(BaseModel):
+    id: int
+    priority: int

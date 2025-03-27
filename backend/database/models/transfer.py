@@ -14,17 +14,20 @@ class TransferStatus(str, Enum):
     approved = "approved"
     rejected = "rejected"
 
+
 class GroupRole(Enum):
     TO = "to"
     FROM = "from"
 
+
 transfer_group = Table(
     'transfer_group',
     Base.metadata,
-    Column('transfer_id', Integer, ForeignKey('transfer.id'), primary_key=True),
+    Column('transfer_id', Integer, ForeignKey('transfer.id', ondelete="CASCADE"), primary_key=True),
     Column('group_id', Integer, ForeignKey('group.id'), primary_key=True),
     Column('group_role', SAEnum(GroupRole), nullable=False)
 )
+
 
 class Transfer(Base):
     __tablename__ = 'transfer'
@@ -44,7 +47,7 @@ class Transfer(Base):
 
     from_elective: Mapped['Elective'] = relationship('Elective', foreign_keys=[from_elective_id])
     to_elective: Mapped['Elective'] = relationship('Elective', foreign_keys=[to_elective_id])
-    
+
     groups_to: Mapped[List["Group"]] = relationship(
         "Group",
         secondary=transfer_group,

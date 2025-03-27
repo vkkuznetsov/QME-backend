@@ -1,10 +1,11 @@
 from logging import getLogger
+from typing import List
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
 from backend.config import settings
 from backend.logic.services.journal_service.orm import JournalService
-from backend.logic.services.transfer_service.schemas import TransferData
+from backend.logic.services.transfer_service.schemas import TransferData, TransferReorder
 from backend.parse_choose import ChooseFileParser
 
 from backend.database.redis import redis_client
@@ -55,6 +56,7 @@ class API:
         self.router.add_api_route("/all_transfer", self.get_all_transfers, methods=["GET"])
         self.router.add_api_route("/transfer/approve/{transfer_id}", self.approve_transfer, methods=["POST"])
         self.router.add_api_route("/transfer/reject/{transfer_id}", self.reject_transfer, methods=["POST"])
+        self.router.add_api_route("/transfer/reorder", self.reorder_transfers, methods=["POST"])
 
         self.router.add_api_route('/journal', self.get_journal, methods=['GET'])
 
@@ -157,6 +159,11 @@ class API:
     async def reject_transfer(self, transfer_id: int):
         transfer_service = ORMTransferService()
         result = await transfer_service.reject_transfer(transfer_id)
+        return result
+
+    async def reorder_transfers(self, order: List[TransferReorder]):
+        transfer_service = ORMTransferService()
+        result = await transfer_service.reorder_transfers(order)
         return result
 
     async def get_journal(self):
