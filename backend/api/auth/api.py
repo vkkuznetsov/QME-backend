@@ -17,6 +17,7 @@ from backend.logic.use_cases.authorize_code import AuthorizeCodeUseCase
 from backend.logic.use_cases.confirm_code import ConfirmCodeUseCase
 from backend.logic.use_cases.create_transfer import CreateTransferUseCase
 from backend.logic.services.transfer_service.orm import ORMTransferService
+from backend.parse_course import ElectiveFileParser
 
 log = getLogger(__name__)
 
@@ -46,6 +47,7 @@ class API:
         self.router.add_api_route("/recomendation/{direction}", self.get_recomendation, methods=["GET"])
 
         self.router.add_api_route("/upload/student-choices", self.handle_student_choices, methods=["POST"])
+        self.router.add_api_route("/upload/courses-info", self.handle_courses_info, methods=["POST"])
 
         self.router.add_api_route("/auth/send-otp", self.send_otp, methods=["POST"])
         self.router.add_api_route("/auth/verify-otp", self.verify_otp, methods=["POST"])
@@ -89,7 +91,16 @@ class API:
         journal_service = JournalService()
         parser = ChooseFileParser(file)
 
-        await journal_service.add_upload_file_record()
+        await journal_service.add_record_upload_choose()
+        await parser()
+        return {"filename": file.filename}
+
+    async def handle_courses_info(self, file:UploadFile = File(...)):
+
+        journal_service = JournalService()
+        parser = ElectiveFileParser(file)
+
+        await journal_service.add_record_upload_elective()
         await parser()
         return {"filename": file.filename}
 

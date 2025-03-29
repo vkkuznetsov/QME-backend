@@ -13,11 +13,23 @@ class JournalService:
         return result.scalars().all()
 
     @db_session
-    async def add_upload_file_record(self, db: AsyncSession):
+    async def add_record_upload_choose(self, db: AsyncSession):
         journal = Journal(
             status="В обработке",
             type='Кем загружен',
             message='Загрузка файла выбора'
+        )
+        db.add(journal)
+        await db.commit()
+        await db.refresh(journal)
+        return journal
+
+    @db_session
+    async def add_record_upload_elective(self, db: AsyncSession):
+        journal = Journal(
+            status="В обработке",
+            type='Кем загружен',
+            message='Загрузка файла расписания элективов'
         )
         db.add(journal)
         await db.commit()
