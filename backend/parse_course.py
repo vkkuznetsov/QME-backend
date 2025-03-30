@@ -62,5 +62,11 @@ class ElectiveFileParser:
             else:
                 log.error(f'Не нашли группу для {elective_name, group_name}')
 
+
+        result = await db.execute(select(Group).options(selectinload(Group.students)))
+        all_groups = result.scalars().all()
+        for group in all_groups:
+            group.init_usage = len(group.students)
+
         await db.commit()
         log.info("Парсинг расписания прошел")

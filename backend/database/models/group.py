@@ -19,6 +19,7 @@ class Group(Base):
     day: Mapped[str] = mapped_column(nullable=True)
     time_interval: Mapped[str] = mapped_column(nullable=True)
     free_spots: Mapped[int] = mapped_column(nullable=True)
+    init_usage: Mapped[int] = mapped_column(nullable=True)
 
     elective_id: Mapped[int] = mapped_column(ForeignKey("elective.id"))
     elective: Mapped["Elective"] = relationship(
