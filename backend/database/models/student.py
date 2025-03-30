@@ -23,6 +23,9 @@ class Student(Base):
     def __str__(self):
         return f'{self.id} - {self.fio} - {self.email}'
 
+    def __repr__(self):
+        return f'{self.id} - {self.fio} - {self.email}'
+
 
 student_group = Table(
     'student_group',

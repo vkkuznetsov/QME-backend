@@ -49,4 +49,7 @@ class Group(Base):
     )
 
     def __str__(self):
-        return f'{self.id} - {self.name} - {self.type}'
+        return f'{self.id} - {self.name} - {self.type} - {self.students}'
+
+    def __repr__(self):
+        return f'{self.id} - {self.name} - {self.type} - {self.students}'

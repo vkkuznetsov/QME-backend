@@ -65,3 +65,9 @@ class Transfer(Base):
         secondaryjoin="Group.id == transfer_group.c.group_id",
         viewonly=True
     )
+
+    def __str__(self):
+        return f'{self.id} {self.student_id} {self.from_elective_id} {self.to_elective_id} {self.priority}'
+
+    def __repr__(self):
+        return f'{self.id} {self.student_id} {self.from_elective_id} {self.to_elective_id} {self.priority}'
