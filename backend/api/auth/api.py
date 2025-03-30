@@ -87,21 +87,24 @@ class API:
         return await student_service.get_all_electives()
 
     async def handle_student_choices(self, file: UploadFile = File(...)):
-        await ChooseFileParser.reset_database()
         journal_service = JournalService()
         parser = ChooseFileParser(file)
+        await ChooseFileParser.reset_database()
 
         await journal_service.add_record_upload_choose()
         await parser()
+        await journal_service.add_record_upload_choose_success()
+
         return {"filename": file.filename}
 
-    async def handle_courses_info(self, file:UploadFile = File(...)):
-
-        journal_service = JournalService()
+    async def handle_courses_info(self, file: UploadFile = File(...)):
+        journal = JournalService()
         parser = ElectiveFileParser(file)
 
-        await journal_service.add_record_upload_elective()
+        await journal.add_record_upload_elective()
         await parser()
+        await journal.add_record_upload_elective_success()
+
         return {"filename": file.filename}
 
     async def send_otp(self, email: str = Form(...)):

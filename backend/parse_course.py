@@ -1,20 +1,13 @@
-import json
-from collections import defaultdict
-from pathlib import Path
-
 import pandas as pd
 from fastapi import UploadFile
-from sqlalchemy import select, update, and_
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from sqlalchemy.dialects.postgresql import insert
-from backend.config import PROJECT_PATH
-from backend.database.database import Base, db_session
+from backend.database.database import db_session
 from backend.database.database import engine
-from backend.database.models.elective import Elective
+from sqlalchemy.orm import selectinload
+
 from backend.database.models.group import Group
-from backend.database.models.student import Student
-from backend.database.models.student import student_group
 
 from logging import getLogger
 from backend.utils.time_measure import time_log
@@ -45,6 +38,29 @@ class ElectiveFileParser:
     async def parse_file(self, db: AsyncSession):
         final_d = set()
         for _, row in self.filtered_df.iterrows():
-            new_data = row['РМУП название'], row['Команда название'], row['свободных мест в команде'], row['Время проведения']
+            new_data = (
+                row['РМУП название'],
+                row['Команда название'],
+                row['свободных мест в команде'],
+                row['День недели'],
+                row['Время проведения']
+            )
             final_d.add(new_data)
-        print(final_d)
+
+        for elective_name, group_name, free_spots, day, time_interval in final_d:
+            result = await db.execute(
+                select(Group)
+                .options(selectinload(Group.students))
+                .filter(Group.name == group_name)
+            )
+            group = result.scalar_one_or_none()
+            if group is not None:
+                group.day = day
+                group.time_interval = time_interval
+                group.free_spots = free_spots
+                group.capacity = len(group.students) + free_spots
+            else:
+                log.error(f'Не нашли группу для {elective_name, group_name}')
+
+        await db.commit()
+        log.info("Парсинг расписания прошел")

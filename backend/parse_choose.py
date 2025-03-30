@@ -78,7 +78,7 @@ async def insert_student_and_electives(students_without_expulsion: pd.DataFrame,
 
     elective_objects = [
         Elective(name=elective['РМУП название'])
-        for elective in unique_electives
+        for elective in unique_electives if elective['РМУП название'] != "Возможно не участвовал в выборе"
     ]
 
     session.add_all(student_objects)

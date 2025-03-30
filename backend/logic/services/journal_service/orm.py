@@ -15,9 +15,9 @@ class JournalService:
     @db_session
     async def add_record_upload_choose(self, db: AsyncSession):
         journal = Journal(
-            status="В обработке",
-            type='Кем загружен',
-            message='Загрузка файла выбора'
+            status="Обработка началась",
+            type="Кем загружен",
+            message="Загрузка файла выбора: обработка началась"
         )
         db.add(journal)
         await db.commit()
@@ -27,9 +27,33 @@ class JournalService:
     @db_session
     async def add_record_upload_elective(self, db: AsyncSession):
         journal = Journal(
-            status="В обработке",
-            type='Кем загружен',
-            message='Загрузка файла расписания элективов'
+            status="Обработка началась",
+            type="Кем загружен",
+            message="Загрузка файла расписания элективов: обработка началась"
+        )
+        db.add(journal)
+        await db.commit()
+        await db.refresh(journal)
+        return journal
+
+    @db_session
+    async def add_record_upload_choose_success(self, db: AsyncSession):
+        journal = Journal(
+            status="Успешно завершено",
+            type="Кем загружен",
+            message="Загрузка файла выбора: успешно завершена"
+        )
+        db.add(journal)
+        await db.commit()
+        await db.refresh(journal)
+        return journal
+
+    @db_session
+    async def add_record_upload_elective_success(self, db: AsyncSession):
+        journal = Journal(
+            status="Успешно завершено",
+            type="Кем загружен",
+            message="Загрузка файла расписания элективов: успешно завершена"
         )
         db.add(journal)
         await db.commit()
