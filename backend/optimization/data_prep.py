@@ -10,7 +10,6 @@ from backend.database.models import Group
 from backend.database.models.transfer import Transfer, transfer_group, GroupRole
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from sqlalchemy.orm import selectinload
 
 
 # Запросы к БД, возвращающие данные для оптимизации
@@ -84,19 +83,14 @@ def prepare_request_structs_db(
         group_info[group.id] = {
             'elective_id': int(group.elective_id),
             'name': str(group.name),
-            'capacity': float(group.capacity),
-            # Предполагаем, что в БД хранится значение использования,
-            # если его нет, можно задать 0
-            'init_usage': float(getattr(group, 'init_usage', 0))
+            'capacity': int(group.capacity),
+            'init_usage': int(getattr(group, 'init_usage', 0))
         }
 
     # 2) Строим словари связей для каждой заявки
     from_dict = {}
     to_dict = {}
     for row in transfer_groups:
-        # Если row – это Row, можно обратиться к колонкам по именам
-        # Например: row.request_id, row.group_id, row.group_role
-        # Если это словарь, используйте row['request_id'] и т.п.
         r_id = row.request_id if hasattr(row, 'request_id') else row.transfer_id
         g_id = row.group_id if hasattr(row, 'group_id') else row.group_id
         role = row.group_role if hasattr(row, 'group_role') else row.group_role
@@ -113,7 +107,7 @@ def prepare_request_structs_db(
             'student_id': int(transfer.student_id),
             'from_elective_id': int(transfer.from_elective_id),
             'to_elective_id': int(transfer.to_elective_id),
-            'priority': float(transfer.priority),
+            'priority': int(transfer.priority),
             'created_at': pd.to_datetime(transfer.created_at),
             'from_groups': from_dict.get(rid, []),
             'to_groups': to_dict.get(rid, [])
