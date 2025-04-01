@@ -9,7 +9,7 @@ on:
       - '*'
 
 jobs:
-  fake-lint:
+  lint:
     runs-on: ubuntu-latest
 
     steps:
