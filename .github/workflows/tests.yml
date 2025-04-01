@@ -10,35 +10,35 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.12'
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
 
-    - name: Install Poetry
-      run: |
-        curl -sSL https://install.python-poetry.org | python3 -
-        
-    - name: Configure Poetry
-      run: |
-        poetry config virtualenvs.create true
-        poetry config virtualenvs.in-project true
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
 
-    - name: Install dependencies
-      run: |
-        poetry install --no-interaction
+      - name: Configure Poetry
+        run: |
+          poetry config virtualenvs.create true
+          poetry config virtualenvs.in-project true
 
-    - name: Run tests
-      run: |
-        poetry run pytest backend/tests/test_services.py -v
+      - name: Install dependencies
+        run: |
+          poetry install --no-interaction
 
-    - name: Upload test results
-      if: always()
-      uses: actions/upload-artifact@v3
-      with:
-        name: test-results
-        path: |
-          .pytest_cache
-          test-reports/ 
+      - name: Run tests
+        run: |
+          poetry run pytest backend/tests/test_services.py -v
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v3.1.2
+        with:
+          name: test-results
+          path: |
+            .pytest_cache
+            test-reports/
