@@ -449,28 +449,24 @@ def compare_methods_db(
     print("ILP Status  =", ilp_res['status'])
     print("ILP Objective =", ilp_res['objective'])
     print("ILP Time (s)  =", ilp_res['time_s'])
-    print("ILP Accepted  =", ilp_res['accepted'])
 
     print("\n=== Шаг 3. Жадный алгоритм (Greedy) ===")
     greedy_res = solve_greedy(group_info, list_of_requests)
     print("Greedy Status  =", greedy_res['status'])
     print("Greedy Objective =", greedy_res['objective'])
     print("Greedy Time (s)  =", greedy_res['time_s'])
-    print("Greedy Accepted  =", greedy_res['accepted'])
 
     print("\n=== Шаг 4. Имитация отжига (Simulated Annealing) ===")
     sa_res = solve_simulated_annealing(group_info, list_of_requests)
     print("SA Status     =", sa_res['status'])
     print("SA Objective  =", sa_res['objective'])
     print("SA Time (s)   =", sa_res['time_s'])
-    print("SA Accepted   =", sa_res['accepted'])
 
     print("\n=== Шаг 5. Генетический алгоритм ===")
     ga_res = solve_genetic(group_info, list_of_requests)
     print("Genetic Status     =", ga_res['status'])
     print("Genetic Objective  =", ga_res['objective'])
     print("Genetic Time (s)   =", ga_res['time_s'])
-    print("Genetic Accepted   =", ga_res['accepted'])
 
     return {
         'ilp': ilp_res,
@@ -485,7 +481,6 @@ async def main() -> None:
     t_groups = await get_transfer_groups()
     groups = await get_groups()
     result = compare_methods_db(transfers, t_groups, groups)
-    print("\nИтоговое сравнение:\n", result)
 
 
 if __name__ == '__main__':

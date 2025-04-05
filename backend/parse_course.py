@@ -58,7 +58,10 @@ class ElectiveFileParser:
                 group.day = day
                 group.time_interval = time_interval
                 group.free_spots = free_spots
-                group.capacity = len(group.students) + free_spots
+                if(group.free_spots<0):
+                    group.capacity = len(group.students)
+                else:
+                    group.capacity = len(group.students) + free_spots
             else:
                 log.error(f'Не нашли группу для {elective_name, group_name}')
 
@@ -66,6 +69,8 @@ class ElectiveFileParser:
         result = await db.execute(select(Group).options(selectinload(Group.students)))
         all_groups = result.scalars().all()
         for group in all_groups:
+            if group.free_spots is None:
+                group.capacity = 200
             group.init_usage = len(group.students)
 
         await db.commit()
