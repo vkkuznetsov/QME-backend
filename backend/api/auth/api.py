@@ -6,6 +6,9 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from backend.config import settings
 from backend.logic.services.journal_service.orm import JournalService
 from backend.logic.services.transfer_service.schemas import TransferData, TransferReorder
+from backend.logic.use_cases.optimize_transfers import OptimizeTransfers
+from backend.optimization.data_for_optimization import DataGetter
+from backend.optimization.ilp_method import ILPSolver
 from backend.parse_choose import ChooseFileParser
 
 from backend.database.redis import redis_client
@@ -59,6 +62,7 @@ class API:
         self.router.add_api_route("/transfer/approve/{transfer_id}", self.approve_transfer, methods=["POST"])
         self.router.add_api_route("/transfer/reject/{transfer_id}", self.reject_transfer, methods=["POST"])
         self.router.add_api_route("/transfer/reorder", self.reorder_transfers, methods=["POST"])
+        self.router.add_api_route("/optimal", self.optimize, methods=["GET"])
 
         self.router.add_api_route('/journal', self.get_journal, methods=['GET'])
 
@@ -184,3 +188,14 @@ class API:
         journal_service = JournalService()
         result = await journal_service.get_all_records()
         return result
+
+    async def optimize(self):
+        data_getter = DataGetter
+        solver = ILPSolver
+        optimizer = OptimizeTransfers(solver, data_getter)
+        recommended_transfer_ids = await optimizer.execute()
+        all_transfers = await self.get_all_transfers()
+        return {
+            "transfers": all_transfers,
+            "recommended_transfers": recommended_transfer_ids
+        }

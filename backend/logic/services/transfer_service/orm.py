@@ -87,8 +87,8 @@ class ORMTransferService(ITransferService):
                 "student_fio": transfer.student.fio,
                 "from_elective_name": transfer.from_elective.name,
                 "to_elective_name": transfer.to_elective.name,
-                "groups_from": [(group.name, group.type) for group in transfer.groups_from],
-                "groups_to": [(group.name, group.type) for group in transfer.groups_to],
+                "groups_from": [(group.name, group.type, group.init_usage, group.capacity) for group in transfer.groups_from],
+                "groups_to": [(group.name, group.type, group.init_usage, group.capacity) for group in transfer.groups_to],
                 "status": transfer.status,
                 "priority": transfer.priority,
                 "created_at": transfer.created_at.isoformat() if transfer.created_at else None

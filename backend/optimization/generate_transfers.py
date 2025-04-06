@@ -105,10 +105,8 @@ async def generate_transfer(num_students: int, db: AsyncSession):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Generate transfers based on existing student enrollments")
-    parser.add_argument("students", type=int, help="Number of students to process")
-    args = parser.parse_args()
-    asyncio.run(generate_transfer(args.students))
+
+    asyncio.run(generate_transfer(40))
 
 
 if __name__ == '__main__':
