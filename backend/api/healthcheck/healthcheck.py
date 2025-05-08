@@ -1,7 +1,8 @@
 from dishka.integrations.fastapi import FromDishka, inject
 from fastapi import APIRouter
 
-from backend.logic.services.healthcheck.base import IHealthCheckService
+from backend.business_logic import IHealthCheckService
+
 
 router = APIRouter(tags=['healthcheks'], prefix='/healthcheck')
 
