@@ -6,11 +6,8 @@ from fastapi import FastAPI
 
 from backend.api.healthcheck.healthcheck import router as healthcheck_router
 from backend.api.auth.api import API
+from backend.business_logic import DBProvider, HealthCheckProvider, get_config, init_logging
 
-from backend.logger.logger import init_logging
-from backend.project.config import Config, get_config
-from backend.project.providers.db import DBProvider
-from backend.project.providers.healthcheck import HealthCheckProvider
 
 
 def get_app() -> FastAPI:

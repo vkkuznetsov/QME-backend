@@ -2,14 +2,9 @@ from logging import getLogger
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 
+from backend.business_logic import AuthorizeCodeUseCase, ConfirmCodeUseCase, ORMStudentService, RedisCodeService, ServiceException, YandexSenderService
 from backend.config import settings
 from backend.database.redis import redis_client
-from backend.logic.services.code_service.redis import RedisCodeService
-from backend.logic.services.sender_service.yandex import YandexSenderService
-from backend.logic.services.student_service.orm import ORMStudentService
-from backend.logic.services.zexceptions.base import ServiceException
-from backend.logic.use_cases.authorize_code import AuthorizeCodeUseCase
-from backend.logic.use_cases.confirm_code import ConfirmCodeUseCase
 
 log = getLogger(__name__)
 
