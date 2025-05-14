@@ -297,7 +297,7 @@ def repair_solution(solution: Dict[int, int], requests_list: List[dict], group_i
 
 # ------------------------- Эвристика: Имитация отжига -------------------------
 def solve_simulated_annealing(group_info: Dict[int, dict], requests_list: List[dict],
-                              iterations: int = 1000, initial_temp: float = 100.0, cooling_rate: float = 0.99):
+                              iterations: int = 1000, initial_temp: float = 1000.0, cooling_rate: float = 0.99):
     if not requests_list:
         return {'status': 'NoRequests', 'objective': 0.0, 'accepted': [], 'time_s': 0.0}
 
@@ -352,7 +352,7 @@ def solve_simulated_annealing(group_info: Dict[int, dict], requests_list: List[d
 
 # ------------------------- Эвристика: Генетический алгоритм -------------------------
 def solve_genetic(group_info: Dict[int, dict], requests_list: List[dict],
-                  population_size: int = 50, generations: int = 100, mutation_rate: float = 0.1):
+                  population_size: int = 500, generations: int = 100, mutation_rate: float = 0.1):
     if not requests_list:
         return {'status': 'NoRequests', 'objective': 0.0, 'accepted': [], 'time_s': 0.0}
 

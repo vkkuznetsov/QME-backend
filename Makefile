@@ -1,13 +1,19 @@
 SERVICE := backend
 
-.PHONY: help init run clean
+.PHONY: help init run clean build up down restart delete
 
 help:
-	@echo "Usage: make <command>"
-	@echo "Available commands:"
-	@echo "  init   - Create .venv and install dependencies"
-	@echo "  run    - Run app $(SERVICE)"
-	@echo "  clean  - Clean cache and delete venv"
+	@echo "Local commands:"
+	@echo "  init    - Create .venv and install dependencies"
+	@echo "  run     - Run app $(SERVICE)"
+	@echo "  clean   - Clean cache and delete venv"
+	@echo ""
+	@echo "Docker commands:"
+	@echo "  build   - Build Docker containers"
+	@echo "  up      - Start Docker containers in detached mode"
+	@echo "  down    - Stop Docker containers"
+	@echo "  restart - Restart Docker containers"
+	@echo "  delete  - Stop Docker containers, remove volumes and images"
 
 
 init:
@@ -33,15 +39,8 @@ up:
 down:
 	docker-compose down
 
-restart:
-	docker-compose down && docker-compose up -d
+restart: down delete build up
+	
 
 delete:
 	docker-compose down -v
-
-# применить последнюю миграцию
-migrate:
-	docker exec -it main-app sh -c "alembic upgrade head"
-
-make-migration:
-	docker exec -it main-app sh -c "alembic revision -m \"${MESSAGE}\""

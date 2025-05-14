@@ -1,11 +1,13 @@
 from dataclasses import dataclass
 
-from sqlalchemy.exc import SQLAlchemyError
+import sqlalchemy as sa
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from redis.asyncio import StrictRedis
 
 from backend.database.database import db_session
 from backend.logic.services.healthcheck.base import IHealthCheckService
-import sqlalchemy as sa
+from backend.database.redis import redis_client
 
 
 @dataclass
@@ -18,5 +20,18 @@ class PostgresHealthcheckService(IHealthCheckService):
             result = cursor.scalar()
             return {self.__class__.__name__: result == 1}
 
-        except SQLAlchemyError:
-            raise
+        except Exception:
+            return {self.__class__.__name__: False}
+
+@dataclass
+class RedisHealthcheckService(IHealthCheckService):
+    redis: StrictRedis = redis_client
+
+    async def check(self) -> dict[str, bool]:
+
+        try:
+            is_redis_alive = await self.redis.ping()
+            return {self.__class__.__name__: is_redis_alive}
+        
+        except Exception:
+            return {self.__class__.__name__: False}
