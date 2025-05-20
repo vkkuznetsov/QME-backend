@@ -1,4 +1,3 @@
-import asyncio
 from functools import wraps
 from typing import Callable
 
@@ -27,3 +26,8 @@ def db_session(func: Callable):
             return await func(*args, **kwargs)
 
     return wrapper
+
+
+async def init_db():
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)

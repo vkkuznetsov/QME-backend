@@ -123,9 +123,11 @@ class ORMStudentService(IStudentService):
         return None
 
     @db_session
-    async def get_all_student_group_elective_email(self, db: AsyncSession):
-        query = select(Student).options(
-            joinedload(Student.groups).joinedload(Group.elective)
+    async def get_all_student_group_elective_email(self, db: AsyncSession, start: int, limit: int):
+        query = (
+            select(Student)
+            .offset(start)
+            .limit(limit)
         )
 
         result = await db.execute(query)
@@ -166,8 +168,8 @@ class ORMStudentService(IStudentService):
             select(
                 Group.elective_id,
                 (
-                    Group.capacity
-                    - func.coalesce(student_count_subq.c.student_count, 0)
+                        Group.capacity
+                        - func.coalesce(student_count_subq.c.student_count, 0)
                 ).label("group_free_spots"),
             )
             .outerjoin(student_count_subq, Group.id == student_count_subq.c.group_id)

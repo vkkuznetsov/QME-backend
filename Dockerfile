@@ -1,15 +1,16 @@
-FROM python:3.12.3-alpine
+FROM python:3.12-slim
 
 WORKDIR /app
 
-ADD pyproject.toml /app
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends coinor-cbc \
+ && rm -rf /var/lib/apt/lists/*
 
-RUN pip install --upgrade pip
-RUN pip install poetry
+COPY pyproject.toml poetry.lock* /app/
+RUN pip install --upgrade pip \
+ && pip install poetry \
+ && poetry config virtualenvs.create false \
+ && poetry install --no-root --no-interaction --no-ansi
 
-RUN poetry config virtualenvs.create false
-RUN poetry install --no-root --no-interaction --no-ansi
-
-COPY . .
-CMD ["export", "PYTHONPATH=/app"]
-CMD ["python", "-m", "backend"]
+COPY . /app
+ENTRYPOINT ["python", "-m", "backend"]

@@ -1,8 +1,9 @@
 from logging import getLogger
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from backend.logic.services.student_service.orm import ORMStudentService
+from backend.api.deps.limit_deps import pagination_params
 
 log = getLogger(__name__)
 
@@ -16,6 +17,12 @@ async def get_student(email: str):
 
 
 @router.get('/students')
-async def get_students():
-    student_service = ORMStudentService()
-    return await student_service.get_all_student_group_elective_email()
+async def get_students(
+        paging: dict = Depends(pagination_params),
+        student_service: ORMStudentService = Depends()
+):
+    students = await student_service.get_all_student_group_elective_email(
+        start=paging["start"],
+        limit=paging["limit"],
+    )
+    return students

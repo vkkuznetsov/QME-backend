@@ -42,4 +42,7 @@ down:
 delete:
 	docker image prune -f
 
-restart: down delete build up
+clean-c:
+	docker rmi qme-backend-backend:latest
+
+restart: down clean-c build up
