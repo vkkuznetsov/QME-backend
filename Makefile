@@ -39,8 +39,7 @@ up:
 down:
 	docker-compose down
 
-restart: down delete build up
-	
-
 delete:
-	docker-compose down -v
+	docker image prune -f
+
+restart: down delete build up

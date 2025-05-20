@@ -5,9 +5,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from redis.asyncio import StrictRedis
 
+from backend.database.redis import redis_client
 from backend.database.database import db_session
 from backend.logic.services.healthcheck.base import IHealthCheckService
-from backend.database.redis import redis_client
 
 
 @dataclass
@@ -23,6 +23,7 @@ class PostgresHealthcheckService(IHealthCheckService):
         except Exception:
             return {self.__class__.__name__: False}
 
+
 @dataclass
 class RedisHealthcheckService(IHealthCheckService):
     redis: StrictRedis = redis_client
@@ -32,6 +33,6 @@ class RedisHealthcheckService(IHealthCheckService):
         try:
             is_redis_alive = await self.redis.ping()
             return {self.__class__.__name__: is_redis_alive}
-        
+
         except Exception:
             return {self.__class__.__name__: False}

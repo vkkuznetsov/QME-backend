@@ -1,8 +1,7 @@
 import logging.config
 from fastapi import FastAPI
 
-from backend.api.auth.api import API
-from backend.api.healthcheck.healthcheck import router as healthcheck_router
+from backend.api.router import api_router
 from fastapi.middleware.cors import CORSMiddleware
 from backend.config import settings
 
@@ -33,9 +32,7 @@ class App:
         )
 
     def connect_api(self):
-        api = API()
-        self.app.include_router(api.router)
-        self.app.include_router(healthcheck_router)
+        self.app.include_router(api_router)
 
     @staticmethod
     def add_ignore_warnings():

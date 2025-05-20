@@ -1,10 +1,10 @@
 default:
-  DEBUG: true
+  FAST_API_PATH: backend.app:app
   NAME: backend
   HOST: 0.0.0.0
   PORT: 8000
   WORKERS: 4
-  FAST_API_PATH: backend.app:app
+  DEBUG: false
   RELOADED: false
   LOG_LEVEL: info
 
