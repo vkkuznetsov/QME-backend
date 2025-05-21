@@ -12,7 +12,7 @@ services:
 
   db:
     container_name: main_db
-    image: postgres:17-alpine
+    image: ankane/pgvector:postgres17-alpine
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres

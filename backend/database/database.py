@@ -3,6 +3,7 @@ from typing import Callable
 
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import declarative_base
+from sqlalchemy.sql import text
 
 from backend.config import settings
 
@@ -30,4 +31,5 @@ def db_session(func: Callable):
 
 async def init_db():
     async with engine.begin() as conn:
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         await conn.run_sync(Base.metadata.create_all)

@@ -1,11 +1,9 @@
-from logging import getLogger
-
 from fastapi import APIRouter, File, UploadFile
-
+from logging import getLogger
 from backend.logic.services.journal_service.orm import JournalService
-
 from backend.parse_choose import ChooseFileParser
 from backend.parse_course import ElectiveFileParser
+from backend.parse_students import StudentsDataParser
 
 log = getLogger(__name__)
 
@@ -23,6 +21,17 @@ async def handle_student_choices(file: UploadFile = File(...)):
     await journal_service.add_record_upload_choose_success()
 
     return {"filename": file.filename}
+
+
+# Endpoint to update Student.diagnostics and Student.competencies from uploaded Excel files
+@router.post("/update-students-data")
+async def update_students_data(
+    diagnostics_file: UploadFile = File(...),
+    competencies_file: UploadFile = File(...)
+):
+    parser = StudentsDataParser(diagnostics_file, competencies_file)
+    await parser()
+    return {"status": "students data updated"}
 
 
 @router.post('/courses-info')

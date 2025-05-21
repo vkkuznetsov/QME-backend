@@ -3,6 +3,10 @@ from typing import List
 from backend.database.database import Base
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import Table, Column, Integer, ForeignKey
+from sqlalchemy.dialects.postgresql import JSONB
+from pgvector.sqlalchemy import Vector
+
+from backend.database.models.group import Group
 
 
 class Student(Base):
@@ -15,16 +19,39 @@ class Student(Base):
     sp_profile: Mapped[str]
     potok: Mapped[str]
 
-    groups: Mapped[List["Group"]] = relationship(
-        back_populates="students", secondary="student_group"
+    competencies: Mapped[list[float]] = mapped_column(
+        Vector(7),
+        nullable=True,
+        comment="h1–h8 в предсказуемом порядке"
     )
-    transfers: Mapped[List["Transfer"]] = relationship('Transfer', back_populates='student')
+
+    diagnostics: Mapped[dict] = mapped_column(
+        JSONB,
+        nullable=True,
+        comment="три балла из листа «Контингент»"
+    )
+
+    text_embed: Mapped[list[float]] = mapped_column(
+        Vector(384),
+        nullable=True,
+        comment="общий профиль студента"
+    )
+
+    groups: Mapped[List["Group"]] = relationship(
+        "Group",
+        back_populates="students",
+        secondary="student_group"
+    )
+    transfers: Mapped[List["Transfer"]] = relationship(
+        "Transfer",
+        back_populates="student"
+    )
 
     def __str__(self):
         return f'{self.id} - {self.fio} - {self.email}'
 
     def __repr__(self):
-        return f'{self.id} - {self.fio} - {self.email}'
+        return self.__str__()
 
 
 student_group = Table(
