@@ -1,3 +1,5 @@
+from typing import List, Optional
+
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
@@ -12,11 +14,80 @@ from backend.logic.services.student_service.base import IStudentService
 
 
 class ORMStudentService(IStudentService):
-    @db_session  # TODO переделать на экзистс
-    async def get_student_by_email(self, student_email, db: AsyncSession):
-        stmt = select(Student).where(Student.email == student_email).limit(1)
-        result = await db.scalar(stmt)
-        return result
+    @db_session  # TODO: переделать на EXISTS для оптимизации
+    async def get_student_by_email(
+            self,
+            student_email: str,
+            db: AsyncSession
+    ) -> Optional[Student]:
+        """
+        Получить студента по email без загрузки связанных сущностей.
+
+        Args:
+            student_email (str): Email студента.
+            db (AsyncSession): Асинхронная сессия SQLAlchemy.
+
+        Returns:
+            Optional[Student]: Объект Student, если найден, иначе None.
+        """
+        query = select(Student).where(Student.email == student_email).limit(1)
+        student: Optional[Student] = await db.scalar(query)
+        return student
+
+    @db_session
+    async def get_student_group_elective_email(
+            self,
+            student_email: str,
+            db: AsyncSession
+    ) -> Optional[Student]:
+        """
+        Получить студента по email вместе с его группами и элективами.
+
+        Загрузка происходит через joinedload, чтобы избежать N+1 проблем.
+
+        Args:
+            student_email (str): Email студента.
+            db (AsyncSession): Асинхронная сессия SQLAlchemy.
+
+        Returns:
+            Optional[Student]: Объект Student с загруженными группами и элективами, иначе None.
+        """
+        query = (
+            select(Student)
+            .options(joinedload(Student.groups).joinedload(Group.elective))
+            .where(Student.email == student_email)
+        )
+        result = await db.execute(query)
+        student: Optional[Student] = result.unique().scalar_one_or_none()
+        return student
+
+    @db_session
+    async def get_all_student_group_elective_email(
+            self,
+            db: AsyncSession,
+            start: int,
+            limit: int
+    ) -> List[Student]:
+        """
+        Получить список студентов с пагинацией без загрузки связанных сущностей.
+
+        Args:
+            db (AsyncSession): Асинхронная сессия SQLAlchemy.
+            start (int): Смещение для начала выборки.
+            limit (int): Максимальное количество возвращаемых записей.
+
+        Returns:
+            List[Student]: Список объектов Student (может быть пустым).
+        """
+        query = (
+            select(Student)
+            .offset(start)
+            .limit(limit)
+        )
+        result = await db.execute(query)
+        students_list = result.unique().scalars().all()
+        students: List[Student] = list(students_list)
+        return students
 
     @db_session
     async def get_recomendation(self, direction: str, db: AsyncSession):
@@ -94,126 +165,6 @@ class ORMStudentService(IStudentService):
             )
 
         return sorted(recommendations, key=lambda x: x["percent"], reverse=True)[:5]
-
-    @db_session
-    async def get_groups_by_elective(self, elective_id: int, db: AsyncSession):
-        query = (
-            select(Group)
-            .options(joinedload(Group.students))
-            .where(Group.elective_id == elective_id)
-        )
-
-        result = await db.execute(query)
-        groups = result.unique().scalars().all()
-
-        return groups or []
-
-    @db_session
-    async def get_student_group_elective_email(self, student_email, db: AsyncSession):
-        query = (
-            select(Student)
-            .options(joinedload(Student.groups).joinedload(Group.elective))
-            .where(Student.email == student_email)
-        )
-
-        result = await db.execute(query)
-        student = result.unique().scalar_one_or_none()
-        if student:
-            return student
-        return None
-
-    @db_session
-    async def get_all_student_group_elective_email(self, db: AsyncSession, start: int, limit: int):
-        query = (
-            select(Student)
-            .offset(start)
-            .limit(limit)
-        )
-
-        result = await db.execute(query)
-        students = result.unique().scalars().all()
-        if students:
-            return students
-        return None
-
-    @db_session
-    async def get_groups_students_by_elective(self, id_elective: int, db: AsyncSession):
-        query = (
-            select(Elective)
-            .options(joinedload(Elective.groups).joinedload(Group.students))
-            .where(Elective.id == id_elective)
-        )
-
-        result = await db.execute(query)
-        elective = result.unique().scalar_one_or_none()
-
-        if elective:
-            return elective
-        return None
-
-    @db_session
-    async def get_all_electives(self, db: AsyncSession):
-        # Подзапрос для подсчета студентов в каждой группе
-        student_count_subq = (
-            select(
-                student_group.c.group_id,
-                func.count(student_group.c.student_id).label("student_count"),
-            )
-            .group_by(student_group.c.group_id)
-            .subquery()
-        )
-
-        # Подзапрос для расчета свободных мест в каждой группе
-        group_free_spots_subq = (
-            select(
-                Group.elective_id,
-                (
-                        Group.capacity
-                        - func.coalesce(student_count_subq.c.student_count, 0)
-                ).label("group_free_spots"),
-            )
-            .outerjoin(student_count_subq, Group.id == student_count_subq.c.group_id)
-            .subquery()
-        )
-
-        # Подзапрос для нахождения минимального количества свободных мест по элективам
-        min_free_spots_subq = (
-            select(
-                group_free_spots_subq.c.elective_id,
-                func.min(group_free_spots_subq.c.group_free_spots).label(
-                    "min_free_spots"
-                ),
-            )
-            .group_by(group_free_spots_subq.c.elective_id)
-            .subquery()
-        )
-
-        # Основной запрос
-        query = (
-            select(
-                Elective.id,
-                Elective.name,
-                Elective.cluster,
-                func.coalesce(min_free_spots_subq.c.min_free_spots, 0).label(
-                    "free_spots"
-                ),
-            )
-            .outerjoin(
-                min_free_spots_subq, Elective.id == min_free_spots_subq.c.elective_id
-            )
-            .order_by(
-                Elective.cluster.is_not(None).desc(), Elective.cluster, Elective.name
-            )
-        )
-
-        # Выполнение запроса и форматирование результата
-        result = await db.execute(query)
-        electives = [
-            {"id": id, "name": name, "cluster": cluster, "free_spots": free_spots}
-            for id, name, cluster, free_spots in result.all()
-        ]
-
-        return electives
 
     @db_session
     async def get_student_groups_for_elective(self, student_id: int, elective_id: int, db: AsyncSession) -> list[Group]:

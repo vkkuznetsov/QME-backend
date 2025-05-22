@@ -9,7 +9,7 @@ class JournalService:
 
     @db_session
     async def get_all_records(self, db: AsyncSession):
-        result = await db.execute(select(Journal))
+        result = await db.execute(select(Journal).order_by(Journal.created_at.desc()))
         return result.scalars().all()
 
     @db_session

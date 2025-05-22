@@ -43,7 +43,7 @@ async def create_transfer(transfer: TransferData):
         raise HTTPException(detail=e.message, status_code=400)
 
 
-@router.delete('/transfer')
+@router.delete('/transfer/{transfer_id}')
 async def delete_transfer(transfer_id: int):
     transfer_service = ORMTransferService()
     result = await transfer_service.delete_transfer(transfer_id=transfer_id)

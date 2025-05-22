@@ -11,9 +11,5 @@ class IStudentService(ABC):
         ...
 
     @abstractmethod
-    async def get_groups_students_by_elective(self, id_elective):
-        ...
-
-    @abstractmethod
     async def get_student_groups_for_elective(self, student_id: int, elective_id: int):
         ...
