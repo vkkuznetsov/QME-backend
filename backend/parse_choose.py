@@ -22,8 +22,9 @@ log = getLogger(name)
 
 
 class ChooseFileParser:
-    def __init__(self, file: UploadFile):
+    def __init__(self, file: UploadFile, *, reset: bool = True):
         self.file = file
+        self.reset = reset
         self.db_engine = engine
         self.raw_df = None
         self.filtered_df = None
@@ -32,7 +33,8 @@ class ChooseFileParser:
         await self.read_file()
         await self.filter_na()
 
-        await self.reset_database()
+        if self.reset:
+            await self.reset_database()
         await self.parse_data_frame()
 
     async def read_file(self):
