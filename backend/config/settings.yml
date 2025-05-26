@@ -5,7 +5,7 @@ default:
   PORT: 8000
   WORKERS: 4
   DEBUG: false
-  RELOADED: false
+  RELOADED: true
   LOG_LEVEL: info
 
   CORS:
@@ -50,6 +50,25 @@ default:
         class: logging.StreamHandler
         formatter: default
         stream: ext://sys.stdout
+      file:
+        level: INFO
+        class: logging.FileHandler
+        formatter: default
+        filename: logs/application.log
+        encoding: utf-8
+    loggers:
+      uvicorn:
+        level: INFO
+        handlers: [console, file]
+        propagate: false
+      uvicorn.access:
+        level: INFO
+        handlers: [console, file]
+        propagate: false
+      fastapi:
+        level: INFO
+        handlers: [console, file]
+        propagate: false
     root:
       level: INFO
-      handlers: [ console ]
+      handlers: [console, file]

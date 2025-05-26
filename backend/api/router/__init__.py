@@ -9,7 +9,7 @@ from .recomendation import router as recomendation_router
 from .student import router as student_router
 from .transfer import router as transfer_router
 from .upload import router as upload_router
-
+from .logs import router as logs_router
 api_router = APIRouter()
 
 api_router.include_router(student_router)
@@ -20,4 +20,5 @@ api_router.include_router(auth_router)
 api_router.include_router(recomendation_router)
 api_router.include_router(optimal_router)
 api_router.include_router(journal_router)
+api_router.include_router(logs_router)
 api_router.include_router(health_router)

@@ -13,4 +13,5 @@ RUN pip install --upgrade pip \
  && poetry install --no-root --no-interaction --no-ansi
 
 COPY . /app
+RUN mkdir -p /app/logs
 ENTRYPOINT ["python", "-m", "backend"]
