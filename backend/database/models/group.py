@@ -1,11 +1,29 @@
 from typing import List
 
-from sqlalchemy import ForeignKey, and_
+from sqlalchemy import ForeignKey, and_, Table, Column
 
 from backend.database.database import Base
 from backend.database.models.transfer import transfer_group, GroupRole
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+group_teacher = Table(
+    'group_teacher',
+    Base.metadata,
+    Column('group_id', ForeignKey('group.id'), primary_key=True),
+    Column('teacher_id', ForeignKey('teacher.id'), primary_key=True)
+)
+
+class Teacher(Base):
+    __tablename__ = 'teacher'
+    
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    fio: Mapped[str] = mapped_column(nullable=False)
+    
+    groups: Mapped[List["Group"]] = relationship(
+        "Group",
+        secondary=group_teacher,
+        back_populates="teachers"
+    )
 
 class Group(Base):
     __tablename__ = 'group'
@@ -13,6 +31,12 @@ class Group(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     name: Mapped[str]
     type: Mapped[str]
+    
+    teachers: Mapped[List["Teacher"]] = relationship(
+        "Teacher",
+        secondary=group_teacher,
+        back_populates="groups"
+    )
 
     capacity: Mapped[int]
 

@@ -1,10 +1,10 @@
-from sqlalchemy import select, func
+from sqlalchemy import select, func, distinct
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, selectinload
 
 from backend.database.database import db_session
 from backend.database.models.elective import Elective
-from backend.database.models.group import Group
+from backend.database.models.group import Group, Teacher, group_teacher
 
 
 class ORMElectiveService:
@@ -16,9 +16,12 @@ class ORMElectiveService:
                 Elective.id,
                 Elective.name,
                 Elective.cluster,
-                func.min(Group.capacity - func.coalesce(Group.init_usage, 0)).label("free_spots")
+                func.min(Group.capacity - func.coalesce(Group.init_usage, 0)).label("free_spots"),
+                func.array_agg(distinct(Teacher.fio)).label("teachers")
             )
             .join(Group, Group.elective_id == Elective.id)
+            .join(group_teacher, group_teacher.c.group_id == Group.id)
+            .join(Teacher, Teacher.id == group_teacher.c.teacher_id)
             .group_by(Elective.id, Elective.name, Elective.cluster)
             .order_by(Elective.id)
         )
@@ -26,8 +29,14 @@ class ORMElectiveService:
         result = await db.execute(query)
 
         electives = [
-            {"id": id, "name": name, "cluster": cluster, "free_spots": free_spots}
-            for id, name, cluster, free_spots in result.all()
+            {
+                "id": id, 
+                "name": name, 
+                "cluster": cluster, 
+                "free_spots": free_spots,
+                "teachers": [t for t in teachers if t is not None]  # Фильтруем None значения
+            }
+            for id, name, cluster, free_spots, teachers in result.all()
         ]
 
         return electives
