@@ -11,7 +11,7 @@ class Manager(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(nullable=False)
-    status: Mapped[str] = mapped_column(Enum("active", "inactive", name="manager_status"), nullable=False)
+    status: Mapped[str] = mapped_column(nullable=False)
    
     email: Mapped[str] = mapped_column(nullable=False)
 
