@@ -45,7 +45,7 @@ class ChooseFileParser:
 
     @staticmethod
     async def reset_database():
-        preserved_table_names = ['journal']
+        preserved_table_names = ['journal','manager']
         tables_to_drop = [table for table in Base.metadata.sorted_tables if table.name not in preserved_table_names]
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.drop_all, tables=tables_to_drop)

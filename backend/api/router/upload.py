@@ -13,7 +13,7 @@ router = APIRouter(prefix='/upload', tags=['upload'])
 @router.post('/student-choices')
 async def handle_student_choices(file: UploadFile = File(...)):
     journal_service = JournalService()
-    parser = ChooseFileParser(file, reset=False)  # reset=False will append data; set to True to drop and recreate
+    parser = ChooseFileParser(file, reset=True)  # reset=False will append data; set to True to drop and recreate
 
     await journal_service.add_record_upload_choose()
     await parser()

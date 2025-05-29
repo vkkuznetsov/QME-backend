@@ -38,3 +38,21 @@ async def clear_backend_logs() -> PlainTextResponse:
         return PlainTextResponse("Логи успешно очищены")
     except Exception as e:
         return PlainTextResponse(f"Ошибка при очистке логов: {str(e)}")
+
+
+@router.get(
+    "/download",
+    response_model=List[Dict[str, str | int]],
+    summary="Чтение логов фронтенда"
+)
+async def get_frontend_logs() -> PlainTextResponse:
+    """
+    Возвращает содержимое файла logs/frontend.log как plain text.
+    Если файл не найден — возвращает пустую строку.
+    """
+    try:
+        with open("logs/application.log", "r", encoding="utf-8") as f:
+            content: str = f.read()
+    except FileNotFoundError:
+        content = ""
+    return PlainTextResponse(content)
