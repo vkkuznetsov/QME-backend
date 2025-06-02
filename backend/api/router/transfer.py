@@ -1,7 +1,7 @@
 from logging import getLogger
 from typing import List
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 
 from backend.logic.services.transfer_service.schemas import TransferData, TransferReorder
 
@@ -78,4 +78,11 @@ async def reject_transfer(transfer_id: int):
 async def reorder_transfers(order: List[TransferReorder]):
     transfer_service = ORMTransferService()
     result = await transfer_service.reorder_transfers(order)
+    return result
+
+@router.get('/transfer/active-count')
+async def count_active_transfers(
+    transfer_service: ORMTransferService = Depends()
+) -> int:
+    result = await transfer_service.count_active_transfer()
     return result

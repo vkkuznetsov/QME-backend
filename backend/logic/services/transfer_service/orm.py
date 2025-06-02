@@ -312,3 +312,11 @@ class ORMTransferService(ITransferService):
             )
             await db.execute(stmt)
         await db.commit()
+
+    @staticmethod
+    @db_session
+    async def count_active_transfer(db: AsyncSession) -> int:
+        result = await db.execute(
+            select(func.count()).select_from(Transfer).where(Transfer.status == 'pending')
+        )
+        return result.scalar_one()

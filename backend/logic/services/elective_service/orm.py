@@ -1,4 +1,4 @@
-from sqlalchemy import select, func, distinct
+from sqlalchemy import select, func, distinct, case
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 
@@ -17,7 +17,8 @@ class ORMElectiveService:
                 Elective.name,
                 Elective.cluster,
                 func.min(Group.capacity - func.coalesce(Group.init_usage, 0)).label("free_spots"),
-                func.array_agg(distinct(Teacher.fio)).label("teachers")
+                func.array_agg(distinct(Teacher.fio)).label("teachers"),
+                func.array_agg(distinct(Group.day)).label("days")
             )
             .join(Group, Group.elective_id == Elective.id)
             .join(group_teacher, group_teacher.c.group_id == Group.id)
@@ -34,9 +35,10 @@ class ORMElectiveService:
                 "name": name, 
                 "cluster": cluster, 
                 "free_spots": free_spots,
-                "teachers": [t for t in teachers if t is not None]  # Фильтруем None значения
+                "teachers": [t for t in teachers if t is not None],  # Фильтруем None значения
+                "days": [d for d in days if d is not None]  # Фильтруем None значения
             }
-            for id, name, cluster, free_spots, teachers in result.all()
+            for id, name, cluster, free_spots, teachers, days in result.all()
         ]
 
         return electives
@@ -58,6 +60,16 @@ class ORMElectiveService:
             select(Group)
             .options(joinedload(Group.students))
             .where(Group.elective_id == elective_id)
+            .order_by(
+                case(
+                    (Group.type == "Лекции", 1),
+                    (Group.type == "Практики", 2),
+                    (Group.type == "Лабораторные", 3),
+                    (Group.type == "Консультации", 4),
+                    else_=5
+                ),
+                Group.name
+            )
         )
 
         result = await db.execute(query)
