@@ -18,6 +18,7 @@
     ORDER BY student_embed(uid) <=> elective.text_embed LIMIT 10
 """
 import argparse, asyncio, logging, random
+import math
 from pathlib import Path
 
 import numpy as np
@@ -45,12 +46,12 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 # ───────────────────────────────────────────────────────────────────────────────
 def get_args():
     p = argparse.ArgumentParser(prog="recommend_train_v4")
-    p.add_argument("--epochs", type=int, default=1000)
-    p.add_argument("--tau", type=float, default=0.10,
+    p.add_argument("--epochs", type=int, default=200)
+    p.add_argument("--tau", type=float, default=0.1,
                    help="температура в InfoNCE (0.07-0.1)")
     p.add_argument("--accum", type=int, default=4,
                    help="шагов grad-accum для крупного batch")
-    p.add_argument("--hard_k", type=int, default=1,
+    p.add_argument("--hard_k", type=int, default=328,
                    help="сколько hard-negatives добавлять")
     return p.parse_args()
 
@@ -129,10 +130,14 @@ class ContrastiveDS(Dataset):
 class StudentTower(nn.Module):
     def __init__(self, n_code, n_prof, d_num=10, d_out=384):
         super().__init__()
-        self.emb_code = nn.Embedding(n_code, 16)
-        self.emb_prof = nn.Embedding(n_prof, 16)
+        self.emb_code = nn.Embedding(n_code, 32)
+        self.emb_prof = nn.Embedding(n_prof, 32)
         self.mlp = nn.Sequential(
-            nn.Linear(d_num + 32, 128),
+            nn.Linear(d_num + 64, 256),
+            nn.LayerNorm(256),
+            nn.GELU(),
+            nn.Dropout(0.3),
+            nn.Linear(256, 128),
             nn.LayerNorm(128),
             nn.GELU(),
             nn.Dropout(0.3),
@@ -177,9 +182,11 @@ def train(args, X_users, X_items, pairs):
     val_u = set(random.sample(u_unique.tolist(), int(0.2 * len(u_unique))))
     msk   = torch.tensor([u.item() in val_u for u in pairs[:, 0]])
     train_p, val_p = pairs[~msk], pairs[msk]
+    logging.info(f"Training pairs count: {len(train_p)}")
+    logging.info(f"Hyperparameters: epochs={args.epochs}, tau={args.tau}, accum_steps={args.accum}, hard_k={args.hard_k}")
 
-    dl_train = DataLoader(ContrastiveDS(train_p), batch_size=1024, shuffle=True)
-    dl_val   = DataLoader(ContrastiveDS(val_p),   batch_size=1024)
+    dl_train = DataLoader(ContrastiveDS(train_p), batch_size=16, shuffle=True)
+    dl_val   = DataLoader(ContrastiveDS(val_p),   batch_size=16)
 
     code_card = int(X_users[:, -2].max()+1)
     prof_card = int(X_users[:, -1].max()+1)
@@ -188,7 +195,7 @@ def train(args, X_users, X_items, pairs):
     X_items_d = X_items.to(DEVICE)
 
     opt = optim.AdamW(list(stu.parameters()) + list(itm.parameters()),
-                      lr=3e-4, weight_decay=1e-4)
+                      lr=1e-4, weight_decay=1e-4)
     sch = optim.lr_scheduler.ReduceLROnPlateau(opt, factor=0.5, patience=4)
 
     # warm-start: заморозка ItemTower на 5 эпох
@@ -221,7 +228,7 @@ def train(args, X_users, X_items, pairs):
             # in-batch negatives: positive, rand, hard, shift-pos
             all_v  = torch.cat([v_pos,
                                 v_rand,
-                                # v_hard,
+                                v_hard,
                                 v_pos.roll(1, 0)], dim=0)             # (4B,384)
             logits = (u_vec @ all_v.T) / args.tau                      # (B,4B)
             lbl    = torch.arange(len(u_vec), device=DEVICE)
@@ -238,14 +245,16 @@ def train(args, X_users, X_items, pairs):
             for p in itm.parameters(): p.requires_grad_(True)
 
         # обновляем hard-neg раз в 5 эпох (со 6-й)
-        if ep % 5 == 0 and ep > 5:
+        if ep % 5 == 0 and ep > 10:
             hard_neg = build_hard_neg(stu, itm, X_users, X_items, train_p,
                                       k=args.hard_k)
 
-        # ---- validation Recall@10 --------------------------------------------
+        # ---- validation metrics --------------------------------------------
+        import math
         with torch.no_grad():
             stu.eval(); itm.eval()
             hit = tot = 0
+            mrr_sum = ndcg_sum = 0.0
             for u, ip in dl_val:
                 u_vec = stu(
                     X_users[u, :10].to(DEVICE),
@@ -253,24 +262,48 @@ def train(args, X_users, X_items, pairs):
                     X_users[u, -1].long().to(DEVICE)
                 )
                 sims = u_vec @ itm(X_items_d).T
-                top10 = sims.topk(10).indices.cpu()
-                for row, true_i in zip(top10, ip):
-                    hit += int(true_i in row)
+                topk = sims.topk(10).indices.cpu()
+                for row, true_i in zip(topk, ip):
                     tot += 1
-            recall = hit / tot
+                    # hit for recall
+                    hit_flag = int(true_i in row)
+                    hit += hit_flag
+                    # position of true item (0-based)
+                    if hit_flag:
+                        pos = (row == true_i).nonzero(as_tuple=True)[0].item()
+                        mrr_sum += 1.0 / (pos + 1)
+                        ndcg_sum += 1.0 / math.log2(pos + 2)
+            recall10 = hit / tot
+            precision10 = hit / (tot * 10)
+            mrr10 = mrr_sum / tot
+            ndcg10 = ndcg_sum / tot
         avg_loss = tot_loss / len(dl_train)
         sch.step(avg_loss)
 
-        if recall > best_recall:
-            best_recall, patience = recall, 0
+        if recall10 > best_recall:
+            best_recall, patience = recall10, 0
         else:
             patience += 1
-        logging.info(f"E{ep:02d} "
-                     f"loss={avg_loss:.4f}  val@10={recall:.3f}  "
-                     f"lr={opt.param_groups[0]['lr']:.1e}")
-        if patience >= 10:          # early stop ≈ 6 эпох без роста
+        logging.info(
+            f"E{ep:02d} "
+            f"loss={avg_loss:.4f}  "
+            f"recall@10={recall10:.3f}  "
+            f"precision@10={precision10:.3f}  "
+            f"mrr@10={mrr10:.3f}  "
+            f"ndcg@10={ndcg10:.3f}  "
+            f"lr={opt.param_groups[0]['lr']:.1e}"
+        )
+        if patience >= 1000:          # early stop ≈ 6 эпох без роста
             break
 
+    # ---- final results summary --------------------------------------------
+    logging.info(
+        f"Training completed. Best observed metrics: "
+        f"recall@10={best_recall:.3f}, "
+        f"precision@10={best_recall/(10):.3f}, "  # approx best precision
+        f"mrr@10={mrr10:.3f}, "
+        f"ndcg@10={ndcg10:.3f}"
+    )
     return stu.cpu()
 
 # ───────────────────────────────────────────────────────────────────────────────
