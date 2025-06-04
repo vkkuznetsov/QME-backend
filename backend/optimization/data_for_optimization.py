@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.database.database import db_session
 from backend.database.models import Group
-from backend.database.models.transfer import GroupRole, Transfer, transfer_group
+from backend.database.models.transfer import GroupRole, Transfer, transfer_group, TransferStatus
 
 
 @dataclass
@@ -25,7 +25,7 @@ class DataGetter:
     async def get_all_transfers_with_pending_status(self, db: AsyncSession) -> Sequence[Transfer]:
         result = await db.execute(
             select(Transfer)
-            .where(Transfer.status == 'pending')
+            .where(Transfer.status == TransferStatus.pending.value)
         )
         transfers = result.scalars().all()
         return transfers

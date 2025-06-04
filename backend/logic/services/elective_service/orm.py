@@ -5,7 +5,7 @@ from sqlalchemy.orm import joinedload, selectinload
 from backend.database.database import db_session
 from backend.database.models.elective import Elective
 from backend.database.models.group import Group, Teacher, group_teacher
-
+from backend.database.models.transfer import Transfer
 
 class ORMElectiveService:
 
@@ -58,7 +58,11 @@ class ORMElectiveService:
     async def get_groups_by_elective(self, elective_id: int, db: AsyncSession):
         query = (
             select(Group)
-            .options(joinedload(Group.students))
+            .options(
+                joinedload(Group.students),
+                joinedload(Group.transfers_to).joinedload(Transfer.student),
+                joinedload(Group.transfers_from).joinedload(Transfer.student)
+            )
             .where(Group.elective_id == elective_id)
             .order_by(
                 case(
@@ -73,4 +77,5 @@ class ORMElectiveService:
         )
 
         result = await db.execute(query)
-        return result.unique().scalars().all()
+        groups = result.unique().scalars().all()
+        return groups
