@@ -24,6 +24,8 @@ pgvector = "^0.4.1"
 greenlet = "^3.2.2"
 sentence-transformers = "^4.1.0"
 numpy = "^2.2.6"
+onnx = "^1.18.0"
+onnxruntime = "^1.22.0"
 
 
 [build-system]

@@ -11,37 +11,44 @@ class ORMElectiveService:
 
     @db_session
     async def get_all_electives(self, db: AsyncSession) -> list[dict]:
-        query = (
-            select(
-                Elective.id,
-                Elective.name,
-                Elective.cluster,
-                func.min(Group.capacity - func.coalesce(Group.init_usage, 0)).label("free_spots"),
-                func.array_agg(distinct(Teacher.fio)).label("teachers"),
-                func.array_agg(distinct(Group.day)).label("days")
+        from collections import defaultdict
+        electives_result = await db.execute(
+            select(Elective).options(
+                joinedload(Elective.groups)
+                .options(
+                    joinedload(Group.students),
+                    joinedload(Group.teachers)
+                )
             )
-            .join(Group, Group.elective_id == Elective.id)
-            .join(group_teacher, group_teacher.c.group_id == Group.id)
-            .join(Teacher, Teacher.id == group_teacher.c.teacher_id)
-            .group_by(Elective.id, Elective.name, Elective.cluster)
-            .order_by(Elective.id)
         )
+        electives = electives_result.unique().scalars().all()
 
-        result = await db.execute(query)
+        result = []
+        for e in electives:
+            type_to_groups = defaultdict(list)
+            for g in e.groups:
+                type_to_groups[g.type].append(g)
 
-        electives = [
-            {
-                "id": id, 
-                "name": name, 
-                "cluster": cluster, 
-                "free_spots": free_spots,
-                "teachers": [t for t in teachers if t is not None],  # Фильтруем None значения
-                "days": [d for d in days if d is not None]  # Фильтруем None значения
-            }
-            for id, name, cluster, free_spots, teachers, days in result.all()
-        ]
+            free_spots_per_type = []
+            for g_list in type_to_groups.values():
+                total = sum(g.capacity - len(g.students) for g in g_list)
+                free_spots_per_type.append(total)
 
-        return electives
+            total_free = min(free_spots_per_type) if free_spots_per_type else 0
+
+            teachers = {t.fio for g in e.groups for t in g.teachers if t.fio}
+            days = {g.day for g in e.groups if g.day}
+
+            result.append({
+                "id": e.id,
+                "name": e.name,
+                "cluster": e.cluster,
+                "free_spots": total_free,
+                "teachers": sorted(teachers),
+                "days": sorted(days)
+            })
+
+        return result
 
     @db_session
     async def get_groups_students_by_elective(self, elective_id: int, db: AsyncSession):

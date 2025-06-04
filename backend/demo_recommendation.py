@@ -7,10 +7,10 @@
 Запуск:
 
     python recommend_train_v4.py
-        --epochs 40          \          # ≤ 40 эпох с early-stop
-        --tau 0.08           \          # температура InfoNCE
-        --accum 4            \          # grad-accum (эфф. batch≈4096)
-        --hard_k 1                      # по 1 hard-neg
+        --epochs 40                    # ≤ 40 эпох с early-stop
+        --tau 0.08                     # температура InfoNCE
+        --accum 4                      # grad-accum (эфф. batch≈4096)
+        --hard_k 1                     # по 1 hard-neg
 
 После обучения появится student_tower.onnx – её можно
 подключать в PL/Python-UDF и выполнять
@@ -20,6 +20,7 @@
 import argparse, asyncio, logging, random
 import math
 from pathlib import Path
+import json
 
 import numpy as np
 import torch
@@ -51,7 +52,7 @@ def get_args():
                    help="температура в InfoNCE (0.07-0.1)")
     p.add_argument("--accum", type=int, default=4,
                    help="шагов grad-accum для крупного batch")
-    p.add_argument("--hard_k", type=int, default=328,
+    p.add_argument("--hard_k", type=int, default=100,
                    help="сколько hard-negatives добавлять")
     return p.parse_args()
 
@@ -110,7 +111,7 @@ async def load_tensors(db: AsyncSession):
     logging.info(f"Users : {X_users.shape}  | "
                  f"Items : {X_items.shape}  | "
                  f"Pairs : {pairs.shape}")
-    return X_users, X_items, pairs
+    return X_users, X_items, pairs, codes, profiles
 
 # ───────────────────────────────────────────────────────────────────────────────
 # 3. DATASET
@@ -293,7 +294,7 @@ def train(args, X_users, X_items, pairs):
             f"ndcg@10={ndcg10:.3f}  "
             f"lr={opt.param_groups[0]['lr']:.1e}"
         )
-        if patience >= 1000:          # early stop ≈ 6 эпох без роста
+        if patience >= 30:          # early stop ≈ 30 эпох без роста
             break
 
     # ---- final results summary --------------------------------------------
@@ -309,7 +310,7 @@ def train(args, X_users, X_items, pairs):
 # ───────────────────────────────────────────────────────────────────────────────
 # 7. ЭКСПОРТ
 # ───────────────────────────────────────────────────────────────────────────────
-def export_onnx(stu: StudentTower):
+def export_onnx(stu: StudentTower, codes: list[str], profiles: list[str]):
     path = Path("student_tower.onnx")
     dummy_num  = torch.zeros(1, 10, dtype=torch.float32)
     dummy_code = torch.zeros(1, dtype=torch.int64)
@@ -321,6 +322,10 @@ def export_onnx(stu: StudentTower):
                       output_names=["embed"],
                       opset_version=17)
     logging.info(f"ONNX-модель сохранена: {path.resolve()}")
+    # Сохраняем JSON-лексикон кодов и профилей
+    (path.parent / "code_list.json").write_text(json.dumps(codes, ensure_ascii=False), encoding="utf-8")
+    (path.parent / "profile_list.json").write_text(json.dumps(profiles, ensure_ascii=False), encoding="utf-8")
+    logging.info("Списки code_list.json и profile_list.json сохранены.")
 
 # ───────────────────────────────────────────────────────────────────────────────
 # MAIN
@@ -330,9 +335,9 @@ async def async_main():
     logging.basicConfig(level=logging.INFO,
                         format="%(levelname)s: %(message)s")
 
-    X_users, X_items, pairs = await load_tensors()
+    X_users, X_items, pairs, codes, profiles = await load_tensors()
     stu_best = train(args, X_users, X_items, pairs)
-    # export_onnx(stu_best)
+    export_onnx(stu_best, codes, profiles)
 
 if __name__ == "__main__":
     asyncio.run(async_main())

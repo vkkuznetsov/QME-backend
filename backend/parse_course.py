@@ -67,10 +67,15 @@ class ElectiveFileParser:
         for elective_name, group_name, free_spots, day, time_interval, teacher in final_d:
             result = await db.execute(
                 select(Group)
+                .join(Group.elective)
                 .options(selectinload(Group.students), selectinload(Group.teachers))
-                .filter(Group.name == group_name)
+                .filter(Group.name == group_name, Group.elective.has(name=elective_name))
             )
-            group = result.scalar_one_or_none()
+            groups = result.scalars().all()
+            if len(groups) > 1:
+                log.warning(f"Найдено несколько групп с именем '{group_name}' и elective '{elective_name}'")
+
+            group = groups[0] if groups else None
             if group is not None:
                 group.day = day
                 group.time_interval = time_interval

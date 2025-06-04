@@ -22,7 +22,7 @@ log = getLogger(name)
 
 
 class ChooseFileParser:
-    def __init__(self, file: UploadFile, *, reset: bool = True):
+    def __init__(self, file: UploadFile, *, reset: bool = False):
         self.file = file
         self.reset = reset
         self.db_engine = engine
@@ -55,7 +55,7 @@ class ChooseFileParser:
     @time_log(name)
     @db_session
     async def parse_data_frame(self, db: AsyncSession):
-        await insert_student_and_electives(self.filtered_df, db)
+        await insert_student_and_electives(self.filtered_df, db, skip_existing_electives=not self.reset)
         df_with_normal_groups, df_broken_groups = filter_groups_df(self.filtered_df)
         await insert_groups(df_with_normal_groups, db)
         await add_description_to_elective(db)
@@ -63,9 +63,14 @@ class ChooseFileParser:
 
 
 @time_log(name)
-async def insert_student_and_electives(students_without_expulsion: pd.DataFrame, session: AsyncSession):
+async def insert_student_and_electives(students_without_expulsion: pd.DataFrame, session: AsyncSession, *, skip_existing_electives: bool = False):
     unique_students = students_without_expulsion.drop_duplicates(subset=['email']).to_dict(orient="records")
     unique_electives = students_without_expulsion.drop_duplicates(subset=['РМУП название']).to_dict(orient='records')
+
+    if skip_existing_electives:
+        existing_electives = await session.execute(select(Elective.name))
+        existing_elective_names = set(existing_electives.scalars().all())
+        unique_electives = [e for e in unique_electives if e['РМУП название'] not in existing_elective_names]
 
     student_objects = [
         Student(
@@ -97,6 +102,10 @@ async def insert_groups(students_without_expulsion: pd.DataFrame, session: Async
     elective_result = await session.execute(select(Elective))
     elective_dict = {e.name: e for e in elective_result.scalars()}
 
+    # Извлекаем уже существующие группы из базы перед началом обработки строк
+    group_result = await session.execute(select(Group))
+    existing_groups = {(g.name, g.elective_id): g for g in group_result.scalars()}
+
     gr_set = {}
     new_groups = []
     student_group_links = []
@@ -111,15 +120,29 @@ async def insert_groups(students_without_expulsion: pd.DataFrame, session: Async
         student = student_dict.get(student_email)
         elective = elective_dict.get(elective_name)
 
-        if group_name not in gr_set:
+        key = (group_name, elective.id)
+        if key not in existing_groups and group_name not in gr_set:
             group = Group(name=group_name, type=group_type, capacity=30, elective=elective)
             new_groups.append(group)
             gr_set[group_name] = group_id_counter
             group_id_counter += 1
-        student_group_links.append({"student_id": student.id, "group_id": gr_set[group_name]})
 
     session.add_all(new_groups)
     await session.flush()
+
+    # Обновляем existing_groups после вставки новых групп
+    group_result = await session.execute(select(Group))
+    existing_groups = {(g.name, g.elective_id): g for g in group_result.scalars()}
+
+    for _, row in students_without_expulsion.iterrows():
+        student_email = row['email']
+        elective_name = row['РМУП название']
+        group_name = row['group_name']
+        student = student_dict.get(student_email)
+        elective = elective_dict.get(elective_name)
+        group = existing_groups.get((group_name, elective.id))
+        if group:
+            student_group_links.append({"student_id": student.id, "group_id": group.id})
 
     if student_group_links:
         stmt = insert(student_group).values(student_group_links).on_conflict_do_nothing()
