@@ -201,8 +201,11 @@ async def add_description_to_elective(db: AsyncSession):
 
 @time_log(name)
 async def add_cluster(db: AsyncSession):
-    """Добавляет данные о кластерах из JSON файла только для тех записей, где cluster не задан"""
-    json_path = Path(PROJECT_PATH) / 'data' / 'courses_clusters.json'
+    """Обновляет поле cluster.
+    - Если в JSON найдено соответствие, выставляет его.
+    - Если соответствия нет и cluster всё ещё NULL, присваивает «Без области знаний».
+    """
+    json_path = Path(PROJECT_PATH) / "data" / "courses_clusters.json"
 
     with open(json_path, "r", encoding="utf-8") as f:
         clusters_data = json.load(f)
@@ -212,20 +215,18 @@ async def add_cluster(db: AsyncSession):
     result = await db.execute(select(Elective))
     electives = result.scalars().all()
 
-    updated_count = 0
+    update_mappings = []
     for elective in electives:
-        if elective.name in cluster_mapping:
-            await db.execute(
-                update(Elective)
-                .where(and_(
-                    Elective.id == elective.id,
-                    Elective.cluster.is_(None)
-                ))
-                .values(cluster=cluster_mapping[elective.name])
-            )
-            updated_count += 1
+        if elective.cluster is not None:
+            # уже установлен – пропускаем
+            continue
 
-    await db.commit()
+        new_cluster = cluster_mapping.get(elective.name, "Без области знаний")
+        update_mappings.append({"id": elective.id, "cluster": new_cluster})
+
+    if update_mappings:
+        await db.execute(update(Elective), update_mappings)
+        await db.commit()
 
 
 @time_log(name)

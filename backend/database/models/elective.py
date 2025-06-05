@@ -2,7 +2,8 @@ from typing import List
 
 from backend.database.database import Base
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from pgvector.sqlalchemy import Vector
+from sqlalchemy import Table, Column, Integer, ForeignKey
+from sqlalchemy.dialects.postgresql import JSONB
 
 from backend.database.models.group import Group
 
@@ -19,9 +20,9 @@ class Elective(Base):
     cluster: Mapped[str] = mapped_column(nullable=True)
     
     text_embed: Mapped[list[float]] = mapped_column(
-        Vector(384),
+        JSONB,
         nullable=True,
-        comment="эмбеддинг описания курса"
+        comment="эмбеддинг описания курса (JSON-массив чисел)"
     )
 
     groups: Mapped[List["Group"]] = relationship(

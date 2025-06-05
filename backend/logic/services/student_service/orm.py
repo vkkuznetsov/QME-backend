@@ -228,7 +228,7 @@ class ORMStudentService(IStudentService):
 
         # 2. Формируем числовые признаки студента
         num_feats = np.hstack([
-            np.array(student.competencies, dtype=np.float32),
+            np.array(list(student.competencies.values()), dtype=np.float32),
             np.array(list(student.diagnostics.values()), dtype=np.float32)
         ]).reshape(1, -1).astype(np.float32)
 

@@ -3,7 +3,7 @@
 generate_embeddings.py
 
 Скрипт для подсчёта эмбeддингов из текстовых полей курса
-и записи их в колонку text_embed модели Elective.
+и записи их в колонку text_embed (JSONB) модели Elective.
 """
 
 import os
@@ -12,8 +12,6 @@ import asyncio
 from typing import Optional
 
 from sentence_transformers import SentenceTransformer
-# нужно, чтобы pgvector понимал list[float]
-from pgvector.sqlalchemy import Vector
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import select

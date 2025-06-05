@@ -72,7 +72,7 @@ async def load_tensors(db: AsyncSession):
 
     feats, code_lbl, prof_lbl, id2user = [], [], [], {}
     for idx, s in enumerate(students):
-        feats.append(np.hstack([s.competencies,
+        feats.append(np.hstack([list(s.competencies.values()),
                                 list(s.diagnostics.values())]))      # (10,)
         code_lbl.append(code2idx[s.sp_code])
         prof_lbl.append(prof2idx[s.sp_profile])

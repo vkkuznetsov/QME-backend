@@ -18,26 +18,7 @@ async def get_student(
     student_info = await student_service.get_student_group_elective_email(email)
     if not student_info:
         return {}
-    return {
-        "id": student_info.id,
-        "fio": student_info.fio,
-        "email": student_info.email,
-        "sp_code": student_info.sp_code,
-        "sp_profile": student_info.sp_profile,
-        "potok": student_info.potok,
-        "text_embed": student_info.text_embed,
-        "groups": [
-            {
-                "id": group.id,
-                "name": group.name,
-                "elective": {
-                    "id": group.elective.id,
-                    "name": group.elective.name
-                } if group.elective else None
-            }
-            for group in student_info.groups
-        ]
-    }
+    return student_info
 
 
 @router.get('/students')
