@@ -4,7 +4,6 @@ from backend.database.database import Base
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import Table, Column, Integer, ForeignKey
 from sqlalchemy.dialects.postgresql import JSONB
-from pgvector.sqlalchemy import Vector
 
 from backend.database.models.group import Group
 
@@ -20,7 +19,7 @@ class Student(Base):
     potok: Mapped[str]
 
     competencies: Mapped[list[float]] = mapped_column(
-        Vector(7),
+        JSONB,
         nullable=True,
         comment="h1–h8 в предсказуемом порядке"
     )
@@ -29,12 +28,6 @@ class Student(Base):
         JSONB,
         nullable=True,
         comment="три балла из листа «Контингент»"
-    )
-
-    text_embed: Mapped[list[float]] = mapped_column(
-        Vector(384),
-        nullable=True,
-        comment="общий профиль студента"
     )
 
     groups: Mapped[List["Group"]] = relationship(

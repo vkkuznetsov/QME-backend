@@ -1,6 +1,7 @@
 from sqlalchemy import select, func, distinct, case
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
+from fastapi.encoders import jsonable_encoder
 
 from backend.database.database import db_session
 from backend.database.models.elective import Elective
@@ -84,5 +85,4 @@ class ORMElectiveService:
         )
 
         result = await db.execute(query)
-        groups = result.unique().scalars().all()
-        return groups
+        return result.unique().scalars().all()

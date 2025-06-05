@@ -2,13 +2,16 @@ import math
 import pandas as pd
 from sqlalchemy import select
 
+# Компетенции, которые храним в JSONB‑поле Student.competencies
+COMP_KEYS = ["H1", "H2", "H3", "H4", "H5", "H6", "H8"]
+
 from backend.database.database import AsyncSessionLocal
 from backend.database.models.student import Student
 
 
 class StudentsDataParser:
     """
-    Parser to update Student.diagnostics and Student.competencies
+    Parser to update Student.diagnostics (JSONB) and Student.competencies (JSONB‑object with keys H1‑H6, H8)
     from uploaded Excel files.
     """
 
@@ -97,15 +100,18 @@ class StudentsDataParser:
             for _, row in df_comp.iterrows():
                 fio = row["Названия строк"]
                 # собираем средние значения по компетенциям H1–H6 и H8
-                indices = list(range(1, 7)) + [8]
-                comps = []
-                for i in indices:
+                comps = {}
+                for i in range(1, 7):
                     col = f"Среднее по полю Н-{i}"
-                    val = row.get(col)
                     try:
-                        comps.append(float(val))
+                        comps[f"H{i}"] = float(row.get(col, 0))
                     except Exception:
-                        comps.append(0.0)
+                        comps[f"H{i}"] = 0.0
+                # H8
+                try:
+                    comps["H8"] = float(row.get("Среднее по полю Н-8", 0))
+                except Exception:
+                    comps["H8"] = 0.0
 
                 # ищем всех студентов с таким ФИО
                 stmt = select(Student).where(Student.fio == fio)
@@ -121,26 +127,15 @@ class StudentsDataParser:
             stmt_all = select(Student)
             result_all = await session.execute(stmt_all)
             all_students = result_all.scalars().all()
-            # Размер вектора компетенций (H1–H6 и H8)
-            zero_comps = [0.0] * 7
+            # Нулевой словарь компетенций
+            zero_comps = {k: 0.0 for k in COMP_KEYS}
             for student in all_students:
                 # Диагностика
                 if not student.diagnostics:
                     student.diagnostics = {"reading": 0, "history": 0, "digital": 0}
-                # Компетенции: проверяем отсутствие или некорректный тип через длину
-                comp_attr = student.competencies
-                fill_comp = False
-                if comp_attr is None:
-                    fill_comp = True
-                else:
-                    try:
-                        # если длина 0 — считаем отсутствием
-                        if len(comp_attr) == 0:
-                            fill_comp = True
-                    except Exception:
-                        # не поддерживает len() — считаем некорректным
-                        fill_comp = True
-                if fill_comp:
+                # Компетенции
+                comps_attr = student.competencies
+                if not isinstance(comps_attr, dict) or any(k not in comps_attr for k in COMP_KEYS):
                     student.competencies = zero_comps
             # Сохраняем изменения
             await session.commit()
