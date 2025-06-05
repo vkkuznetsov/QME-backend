@@ -1,6 +1,7 @@
+from typing import Dict
+
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
-from typing import Dict
 
 from backend.logic.services.healthcheck.alchemy import PostgresHealthcheckService, RedisHealthcheckService
 

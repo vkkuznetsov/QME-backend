@@ -1,17 +1,19 @@
-from sqlalchemy import select, func, case
-from sqlalchemy.ext.asyncio import AsyncSession
-from backend.database.database import db_session
-from backend.database.models.report import Report
-from backend.database.models.transfer import Transfer
-from backend.database.models.student import Student, student_group
-from backend.database.models.elective import Elective
-from backend.database.models.group import Group
-from backend.database.models.manager import Manager
-from backend.logic.services.log_service.orm import DatabaseLogger
 from pathlib import Path
+
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils import get_column_letter
+from sqlalchemy import select, func, case
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from backend.database.database import db_session
+from backend.database.models.elective import Elective
+from backend.database.models.group import Group
+from backend.database.models.manager import Manager
+from backend.database.models.report import Report
+from backend.database.models.student import Student, student_group
+from backend.database.models.transfer import Transfer
+from backend.logic.services.log_service.orm import DatabaseLogger
 
 log = DatabaseLogger(__name__)
 

@@ -1,9 +1,11 @@
+from datetime import datetime
+from typing import List
+
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
-from backend.logic.services.report_service.orm import ReportService
-from typing import List
 from pydantic import BaseModel
-from datetime import datetime
+
+from backend.logic.services.report_service.orm import ReportService
 
 router = APIRouter(prefix='/report', tags=['report'])
 

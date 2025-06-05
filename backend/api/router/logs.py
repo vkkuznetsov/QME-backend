@@ -1,9 +1,11 @@
+from datetime import datetime
+from typing import List
+
 from fastapi import APIRouter, Depends
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
-from datetime import datetime
+
 from backend.logic.services.log_service.orm import ORMLogService
-from typing import List
 
 router = APIRouter(prefix='/logs', tags=['logs'])
 
@@ -82,4 +84,3 @@ async def clear_backend_logs() -> PlainTextResponse:
         return PlainTextResponse("Логи успешно очищены")
     except Exception as e:
         return PlainTextResponse(f"Ошибка при очистке логов: {str(e)}")
-

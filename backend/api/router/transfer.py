@@ -3,13 +3,11 @@ from typing import List
 
 from fastapi import APIRouter, HTTPException, Depends
 
-from backend.logic.services.transfer_service.schemas import TransferData, TransferReorder
-
 from backend.logic.services.student_service.orm import ORMStudentService
-from backend.logic.services.zexceptions.base import ServiceException
-
-from backend.logic.use_cases.create_transfer import CreateTransferUseCase
 from backend.logic.services.transfer_service.orm import ORMTransferService
+from backend.logic.services.transfer_service.schemas import TransferData, TransferReorder
+from backend.logic.services.zexceptions.base import ServiceException
+from backend.logic.use_cases.create_transfer import CreateTransferUseCase
 
 log = getLogger(__name__)
 

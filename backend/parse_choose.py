@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pandas as pd
 from fastapi import UploadFile
-from sqlalchemy import select, update, and_
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from sqlalchemy.dialects.postgresql import insert
