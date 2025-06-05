@@ -178,6 +178,7 @@ class ORMStudentService(IStudentService):
 
         return sorted(recommendations, key=lambda x: x["percent"], reverse=True)[:5]
 
+    @db_session
     async def get_student_groups_for_elective(self, student_id: int, elective_id: int, db: AsyncSession) -> list[Group]:
         query = (
             select(Group)
