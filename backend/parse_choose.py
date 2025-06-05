@@ -15,10 +15,10 @@ from backend.database.models.group import Group
 from backend.database.models.student import Student
 from backend.database.models.student import student_group
 
-from logging import getLogger
+from backend.logic.services.log_service.orm import DatabaseLogger
 from backend.utils.time_measure import time_log
 name = __name__
-log = getLogger(name)
+log = DatabaseLogger(name)
 
 
 class ChooseFileParser:
@@ -45,7 +45,7 @@ class ChooseFileParser:
 
     @staticmethod
     async def reset_database():
-        preserved_table_names = ['journal','manager']
+        preserved_table_names = ['journal','manager','logs']
         tables_to_drop = [table for table in Base.metadata.sorted_tables if table.name not in preserved_table_names]
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.drop_all, tables=tables_to_drop)

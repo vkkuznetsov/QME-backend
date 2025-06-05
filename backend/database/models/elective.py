@@ -2,7 +2,6 @@ from typing import List
 
 from backend.database.database import Base
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import Table, Column, Integer, ForeignKey
 from pgvector.sqlalchemy import Vector
 
 from backend.database.models.group import Group

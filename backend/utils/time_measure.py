@@ -15,7 +15,7 @@ def time_log(logger_name: str):
             async def async_wrapper(*args, **kwargs):
                 start_time = time()
                 result = await func(*args, **kwargs)
-                print(f"{func.__name__} заняла {time() - start_time} секунд")
+                log.info(f"{func.__name__} заняла {time() - start_time} секунд")
                 return result
 
             return async_wrapper
@@ -25,7 +25,7 @@ def time_log(logger_name: str):
             def sync_wrapper(*args, **kwargs):
                 start_time = time()
                 result = func(*args, **kwargs)
-                print(f"{func.__name__} заняла {time() - start_time} секунд")
+                log.info(f"{func.__name__} заняла {time() - start_time} секунд")
                 return result
 
             return sync_wrapper
