@@ -9,12 +9,11 @@ class CodeNotFoundException(ServiceException):
 
     @property
     def message(self):
-        return f'Code - {self.code} not found'
+        return f"Code - {self.code} not found"
 
 
 @dataclass
 class CodeNotEqualException(ServiceException):
-
     @property
     def message(self):
-        return 'Code not equal'
+        return "Code not equal"

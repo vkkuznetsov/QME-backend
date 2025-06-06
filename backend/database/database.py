@@ -7,15 +7,19 @@ from sqlalchemy.sql import text
 
 from backend.config import settings
 
-DATABASE_URL = (f"{settings.DATABASE.DRIVER}://"
-                f"{settings.DATABASE.USER}:"
-                f"{settings.DATABASE.PASSWORD}@"
-                f"{settings.DATABASE.HOST}:"
-                f"{settings.DATABASE.PORT}/"
-                f"{settings.DATABASE.NAME}")
+DATABASE_URL = (
+    f"{settings.DATABASE.DRIVER}://"
+    f"{settings.DATABASE.USER}:"
+    f"{settings.DATABASE.PASSWORD}@"
+    f"{settings.DATABASE.HOST}:"
+    f"{settings.DATABASE.PORT}/"
+    f"{settings.DATABASE.NAME}"
+)
 
 engine = create_async_engine(DATABASE_URL, echo=False)
-AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+AsyncSessionLocal = async_sessionmaker(
+    engine, class_=AsyncSession, expire_on_commit=False
+)
 Base = declarative_base()
 
 
@@ -23,7 +27,7 @@ def db_session(func: Callable):
     @wraps(func)
     async def wrapper(*args, **kwargs):
         async with AsyncSessionLocal() as db:
-            kwargs['db'] = db
+            kwargs["db"] = db
             return await func(*args, **kwargs)
 
     return wrapper

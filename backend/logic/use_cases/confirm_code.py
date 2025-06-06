@@ -1,7 +1,8 @@
 from dataclasses import dataclass
+
 from backend.logic.services.code_service.base import ICodeService
-from backend.logic.services.student_service.base import IStudentService
 from backend.logic.services.manager_service.orm import ManagerService
+from backend.logic.services.student_service.base import IStudentService
 
 
 @dataclass
@@ -19,10 +20,10 @@ class ConfirmCodeUseCase:
     async def get_role(self, email: str) -> str:
         manager = await self.manager_service.get_manager_by_email(email)
         if manager:
-            return "admin", '/admin'
+            return "admin", "/admin"
 
         student = await self.student_service.get_student_by_email(email)
         if student:
-            return "user", '/'
+            return "user", "/"
 
         raise Exception("User not found")

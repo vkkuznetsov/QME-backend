@@ -42,11 +42,11 @@ class ReportService:
 
             # Генерируем отчет в зависимости от типа
             match report_type:
-                case 'student_transfers':
+                case "student_transfers":
                     await self._generate_student_transfers_report(report, db)
-                case 'elective_statistics':
+                case "elective_statistics":
                     await self._generate_elective_statistics_report(report, db)
-                case 'manager_actions':
+                case "manager_actions":
                     await self._generate_manager_actions_report(report, db)
                 case _:
                     raise ValueError(f"Неизвестный тип отчета: {report_type}")
@@ -63,24 +63,26 @@ class ReportService:
             await db.commit()
             raise e
 
-    async def _generate_student_transfers_report(self, report: Report, db: AsyncSession):
+    async def _generate_student_transfers_report(
+            self, report: Report, db: AsyncSession
+    ):
         from sqlalchemy.orm import aliased
 
         # Создаем псевдонимы
-        FromElective = aliased(Elective, name='from_elective')
-        ToElective = aliased(Elective, name='to_elective')
+        FromElective = aliased(Elective, name="from_elective")
+        ToElective = aliased(Elective, name="to_elective")
         """Генерирует отчет по переводам студентов"""
         # Получаем данные о переводах
         query = (
             select(
                 Transfer.id,
-                Student.fio.label('student_name'),
-                FromElective.name.label('from_elective'),
-                ToElective.name.label('to_elective'),
+                Student.fio.label("student_name"),
+                FromElective.name.label("from_elective"),
+                ToElective.name.label("to_elective"),
                 Transfer.status,
                 Transfer.created_at,
                 Transfer.priority,
-                Manager.name.label('manager_name')
+                Manager.name.label("manager_name"),
             )
             .join(Student, Transfer.student_id == Student.id)
             .join(FromElective, Transfer.from_elective_id == FromElective.id)
@@ -97,12 +99,23 @@ class ReportService:
         ws.title = "Переводы студентов"
 
         # Заголовки
-        headers = ["ID", "Студент", "Из электива", "В электив", "Статус", "Дата создания", "Приоритет", "Менеджер"]
+        headers = [
+            "ID",
+            "Студент",
+            "Из электива",
+            "В электив",
+            "Статус",
+            "Дата создания",
+            "Приоритет",
+            "Менеджер",
+        ]
         for col, header in enumerate(headers, 1):
             cell = ws.cell(row=1, column=col)
             cell.value = header
             cell.font = Font(bold=True)
-            cell.fill = PatternFill(start_color="CCCCCC", end_color="CCCCCC", fill_type="solid")
+            cell.fill = PatternFill(
+                start_color="CCCCCC", end_color="CCCCCC", fill_type="solid"
+            )
             cell.alignment = Alignment(horizontal="center")
 
         # Данные
@@ -124,7 +137,9 @@ class ReportService:
         file_path = self._get_report_path(report.id)
         wb.save(file_path)
 
-    async def _generate_elective_statistics_report(self, report: Report, db: AsyncSession):
+    async def _generate_elective_statistics_report(
+            self, report: Report, db: AsyncSession
+    ):
         """Генерирует статистику по элективам"""
         # Получаем статистику по элективам
         query = (
@@ -132,21 +147,22 @@ class ReportService:
                 Elective.id,
                 Elective.name,
                 Elective.cluster,
-                func.count(func.distinct(Student.id)).label('student_count'),
-                func.count(func.distinct(Transfer.id)).label('transfer_count'),
+                func.count(func.distinct(Student.id)).label("student_count"),
+                func.count(func.distinct(Transfer.id)).label("transfer_count"),
                 func.count(
                     func.distinct(
-                        case(
-                            (Transfer.status == 'approved', Transfer.id),
-                            else_=None
-                        )
+                        case((Transfer.status == "approved", Transfer.id), else_=None)
                     )
-                ).label('approved_transfers')
+                ).label("approved_transfers"),
             )
             .outerjoin(Group, Elective.id == Group.elective_id)
             .outerjoin(student_group, Group.id == student_group.c.group_id)
             .outerjoin(Student, student_group.c.student_id == Student.id)
-            .outerjoin(Transfer, (Elective.id == Transfer.from_elective_id) | (Elective.id == Transfer.to_elective_id))
+            .outerjoin(
+                Transfer,
+                (Elective.id == Transfer.from_elective_id)
+                | (Elective.id == Transfer.to_elective_id),
+            )
             .group_by(Elective.id, Elective.name, Elective.cluster)
             .order_by(Elective.cluster, Elective.name)
         )
@@ -159,12 +175,21 @@ class ReportService:
         ws.title = "Статистика элективов"
 
         # Заголовки
-        headers = ["ID", "Название", "Кластер", "Количество студентов", "Количество заявок", "Одобренных заявок"]
+        headers = [
+            "ID",
+            "Название",
+            "Кластер",
+            "Количество студентов",
+            "Количество заявок",
+            "Одобренных заявок",
+        ]
         for col, header in enumerate(headers, 1):
             cell = ws.cell(row=1, column=col)
             cell.value = header
             cell.font = Font(bold=True)
-            cell.fill = PatternFill(start_color="CCCCCC", end_color="CCCCCC", fill_type="solid")
+            cell.fill = PatternFill(
+                start_color="CCCCCC", end_color="CCCCCC", fill_type="solid"
+            )
             cell.alignment = Alignment(horizontal="center")
 
         # Данные
@@ -189,25 +214,19 @@ class ReportService:
         # Получаем данные о действиях менеджеров
         query = (
             select(
-                Manager.name.label('manager_name'),
-                func.count(func.distinct(Transfer.id)).label('total_transfers'),
+                Manager.name.label("manager_name"),
+                func.count(func.distinct(Transfer.id)).label("total_transfers"),
                 func.count(
                     func.distinct(
-                        case(
-                            (Transfer.status == 'approved', Transfer.id),
-                            else_=None
-                        )
+                        case((Transfer.status == "approved", Transfer.id), else_=None)
                     )
-                ).label('approved_transfers'),
+                ).label("approved_transfers"),
                 func.count(
                     func.distinct(
-                        case(
-                            (Transfer.status == 'rejected', Transfer.id),
-                            else_=None
-                        )
+                        case((Transfer.status == "rejected", Transfer.id), else_=None)
                     )
-                ).label('rejected_transfers'),
-                func.max(Transfer.created_at).label('last_action')
+                ).label("rejected_transfers"),
+                func.max(Transfer.created_at).label("last_action"),
             )
             .outerjoin(Transfer, Manager.id == Transfer.manager_id)
             .group_by(Manager.id, Manager.name)
@@ -222,12 +241,20 @@ class ReportService:
         ws.title = "Действия менеджеров"
 
         # Заголовки
-        headers = ["Менеджер", "Всего заявок", "Одобрено", "Отклонено", "Последнее действие"]
+        headers = [
+            "Менеджер",
+            "Всего заявок",
+            "Одобрено",
+            "Отклонено",
+            "Последнее действие",
+        ]
         for col, header in enumerate(headers, 1):
             cell = ws.cell(row=1, column=col)
             cell.value = header
             cell.font = Font(bold=True)
-            cell.fill = PatternFill(start_color="CCCCCC", end_color="CCCCCC", fill_type="solid")
+            cell.fill = PatternFill(
+                start_color="CCCCCC", end_color="CCCCCC", fill_type="solid"
+            )
             cell.alignment = Alignment(horizontal="center")
 
         # Данные
@@ -249,10 +276,7 @@ class ReportService:
     @db_session
     async def get_available_reports(self, db: AsyncSession) -> list[Report]:
         """Получает список доступных отчетов"""
-        result = await db.execute(
-            select(Report)
-            .order_by(Report.created_at.desc())
-        )
+        result = await db.execute(select(Report).order_by(Report.created_at.desc()))
         return list(result.scalars().all())
 
     @db_session

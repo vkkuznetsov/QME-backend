@@ -11,4 +11,4 @@ class AlreadyExistsTransfer(ServiceException):
 
     @property
     def message(self):
-        return f'Заявка студента- {self.student_id} с электива {self.from_id} на {self.to_id} уже существует'
+        return f"Заявка студента- {self.student_id} с электива {self.from_id} на {self.to_id} уже существует"

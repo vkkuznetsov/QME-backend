@@ -9,7 +9,7 @@ from backend.database.models.group import Group
 
 
 class Elective(Base):
-    __tablename__ = 'elective'
+    __tablename__ = "elective"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     name: Mapped[str]
@@ -18,11 +18,9 @@ class Elective(Base):
     text: Mapped[str] = mapped_column(nullable=True)
     questions: Mapped[str] = mapped_column(nullable=True)
     cluster: Mapped[str] = mapped_column(nullable=True)
-    
+
     text_embed: Mapped[list[float]] = mapped_column(
-        JSONB,
-        nullable=True,
-        comment="эмбеддинг описания курса (JSON-массив чисел)"
+        JSONB, nullable=True, comment="эмбеддинг описания курса (JSON-массив чисел)"
     )
 
     groups: Mapped[List["Group"]] = relationship(
@@ -31,7 +29,7 @@ class Elective(Base):
     )
 
     def __str__(self):
-        return f'{self.id} - {self.name}'
+        return f"{self.id} - {self.name}"
 
     def __repr__(self):
         return self.__str__()

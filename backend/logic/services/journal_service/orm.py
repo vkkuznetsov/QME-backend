@@ -1,12 +1,11 @@
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from backend.database.models.journal import Journal
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.database.database import db_session
+from backend.database.models.journal import Journal
 
 
 class JournalService:
-
     @db_session
     async def get_all_records(self, db: AsyncSession):
         result = await db.execute(select(Journal).order_by(Journal.created_at.desc()))
@@ -17,7 +16,7 @@ class JournalService:
         journal = Journal(
             status="Обработка началась",
             type="Кем загружен",
-            message="Загрузка файла выбора: обработка началась"
+            message="Загрузка файла выбора: обработка началась",
         )
         db.add(journal)
         await db.commit()
@@ -29,7 +28,7 @@ class JournalService:
         journal = Journal(
             status="Обработка началась",
             type="Кем загружен",
-            message="Загрузка файла расписания элективов: обработка началась"
+            message="Загрузка файла расписания элективов: обработка началась",
         )
         db.add(journal)
         await db.commit()
@@ -41,7 +40,7 @@ class JournalService:
         journal = Journal(
             status="Успешно завершено",
             type="Кем загружен",
-            message="Загрузка файла выбора: успешно завершена"
+            message="Загрузка файла выбора: успешно завершена",
         )
         db.add(journal)
         await db.commit()
@@ -53,7 +52,7 @@ class JournalService:
         journal = Journal(
             status="Успешно завершено",
             type="Кем загружен",
-            message="Загрузка файла расписания элективов: успешно завершена"
+            message="Загрузка файла расписания элективов: успешно завершена",
         )
         db.add(journal)
         await db.commit()

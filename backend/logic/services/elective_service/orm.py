@@ -1,16 +1,15 @@
-from sqlalchemy import select, func, distinct, case
+from sqlalchemy import select, func, case
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
-from fastapi.encoders import jsonable_encoder
 
 from backend.database.database import db_session
 from backend.database.models.elective import Elective
-from backend.database.models.group import Group, Teacher, group_teacher
-from backend.database.models.transfer import Transfer
+from backend.database.models.group import Group
 from backend.database.models.student import Student
+from backend.database.models.transfer import Transfer
+
 
 class ORMElectiveService:
-
     @db_session
     async def get_all_electives(self, db: AsyncSession) -> list[dict]:
         """
@@ -104,7 +103,7 @@ class ORMElectiveService:
             .options(
                 joinedload(Group.students),
                 joinedload(Group.transfers_to).joinedload(Transfer.student),
-                joinedload(Group.transfers_from).joinedload(Transfer.student)
+                joinedload(Group.transfers_from).joinedload(Transfer.student),
             )
             .where(Group.elective_id == elective_id)
             .order_by(
@@ -113,9 +112,9 @@ class ORMElectiveService:
                     (Group.type == "Практики", 2),
                     (Group.type == "Лабораторные", 3),
                     (Group.type == "Консультации", 4),
-                    else_=5
+                    else_=5,
                 ),
-                Group.name
+                Group.name,
             )
         )
 

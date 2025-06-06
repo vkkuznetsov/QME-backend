@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from backend.logic.services.report_service.orm import ReportService
 
-router = APIRouter(prefix='/report', tags=['report'])
+router = APIRouter(prefix="/report", tags=["report"])
 
 
 class ReportRequest(BaseModel):
@@ -23,9 +23,7 @@ class ReportResponse(BaseModel):
 
 
 @router.get("/list", response_model=List[ReportResponse])
-async def list_reports(
-        report_service: ReportService = Depends()
-):
+async def list_reports(report_service: ReportService = Depends()):
     """Получает список доступных отчетов"""
     reports = await report_service.get_available_reports()
     return reports
@@ -33,8 +31,7 @@ async def list_reports(
 
 @router.post("/generate", response_model=ReportResponse)
 async def generate_report(
-        request: ReportRequest,
-        report_service: ReportService = Depends()
+    request: ReportRequest, report_service: ReportService = Depends()
 ):
     """Генерирует отчет по запросу"""
     report = await report_service.generate_report(
@@ -44,10 +41,7 @@ async def generate_report(
 
 
 @router.get("/{report_id}", response_model=ReportResponse)
-async def get_report(
-        report_id: int,
-        report_service: ReportService = Depends()
-):
+async def get_report(report_id: int, report_service: ReportService = Depends()):
     """Получает информацию о конкретном отчете"""
     report = await report_service.get_report(report_id)
     if not report:
@@ -56,10 +50,7 @@ async def get_report(
 
 
 @router.get("/{report_id}/download")
-async def download_report(
-        report_id: int,
-        report_service: ReportService = Depends()
-):
+async def download_report(report_id: int, report_service: ReportService = Depends()):
     """Скачивает файл отчета"""
     report = await report_service.get_report(report_id)
     if not report:
@@ -75,5 +66,5 @@ async def download_report(
     return FileResponse(
         path=file_path,
         filename=f"report_{report_id}.xlsx",
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )

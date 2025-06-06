@@ -8,7 +8,6 @@ from backend.database.models.manager import Manager
 
 
 class ManagerService:
-
     @db_session
     async def get_manager_by_email(self, email: str, db: AsyncSession):
         query = select(Manager).where(Manager.email == email).limit(1)
@@ -22,18 +21,16 @@ class ManagerService:
 
     @db_session
     async def add_manager(self, name: str, email: str, status: str, db: AsyncSession):
-        manager = Manager(
-            name=name,
-            email=email,
-            status=status
-        )
+        manager = Manager(name=name, email=email, status=status)
         db.add(manager)
         await db.commit()
         await db.refresh(manager)
         return manager
 
     @db_session
-    async def update_manager(self, manager_id: int, name: str, email: str, status: str, db: AsyncSession):
+    async def update_manager(
+            self, manager_id: int, name: str, email: str, status: str, db: AsyncSession
+    ):
         if status not in ["active", "inactive"]:
             return {"error": "Invalid status"}
         manager = await db.get(Manager, manager_id)

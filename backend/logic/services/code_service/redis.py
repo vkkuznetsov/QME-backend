@@ -2,9 +2,13 @@ import random
 from dataclasses import dataclass
 
 from redis.asyncio import StrictRedis
+
 from backend.config import settings
 from backend.logic.services.code_service.base import ICodeService
-from backend.logic.services.zexceptions.code import CodeNotFoundException, CodeNotEqualException
+from backend.logic.services.zexceptions.code import (
+    CodeNotFoundException,
+    CodeNotEqualException,
+)
 
 
 @dataclass

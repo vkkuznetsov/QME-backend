@@ -20,10 +20,10 @@ MAX_SENDS = settings.OTP.MAX_SENDS
 COOLDOWN_TIME = settings.OTP.COOLDOWN_TIME
 BLOCK_TIME = settings.OTP.BLOCK_TIME
 
-router = APIRouter(prefix='/auth', tags=['auth'])
+router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.post('/send-otp')
+@router.post("/send-otp")
 async def send_otp(email: str = Body(...)):
     try:
         student_service = ORMStudentService()
@@ -31,13 +31,15 @@ async def send_otp(email: str = Body(...)):
         sender_service = YandexSenderService()
         code_service = RedisCodeService(redis_client)
 
-        await AuthorizeCodeUseCase(student_service, manager_service, sender_service, code_service).execute(email)
+        await AuthorizeCodeUseCase(
+            student_service, manager_service, sender_service, code_service
+        ).execute(email)
         return {"message": f"sent successfully to {email}"}
     except ServiceException as e:
         return HTTPException(detail=e.message, status_code=400)
 
 
-@router.post('/verify-otp')
+@router.post("/verify-otp")
 async def verify_otp(email: str = Body(...), otp: str = Body(...)):
     student_service = ORMStudentService()
     manager_service = ManagerService()
@@ -46,6 +48,6 @@ async def verify_otp(email: str = Body(...), otp: str = Body(...)):
     use_case = ConfirmCodeUseCase(student_service, manager_service, code_service)
     try:
         role, url = await use_case.execute(email, otp)
-        return {"status": "success", "role": role, 'redirectUrl': url}
+        return {"status": "success", "role": role, "redirectUrl": url}
     except ServiceException as e:
         raise HTTPException(detail=e.message, status_code=404)

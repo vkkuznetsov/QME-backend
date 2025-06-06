@@ -1,8 +1,9 @@
-from typing import List, Optional
-from pathlib import Path
 import json
-import onnxruntime as ort
+from logging import getLogger
+from pathlib import Path
+from typing import List, Optional
 
+import onnxruntime as ort
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
@@ -12,10 +13,7 @@ from backend.database.models.elective import Elective
 from backend.database.models.group import Group
 from backend.database.models.student import Student
 from backend.database.models.student import student_group
-
 from backend.logic.services.student_service.base import IStudentService
-
-from logging import getLogger
 
 log = getLogger(__name__)
 
@@ -28,9 +26,7 @@ onnx_sess = None
 class ORMStudentService(IStudentService):
     @db_session  # TODO: переделать на EXISTS для оптимизации
     async def get_student_by_email(
-            self,
-            student_email: str,
-            db: AsyncSession
+            self, student_email: str, db: AsyncSession
     ) -> Optional[Student]:
         """
         Получить студента по email без загрузки связанных сущностей.
@@ -48,9 +44,7 @@ class ORMStudentService(IStudentService):
 
     @db_session
     async def get_student_group_elective_email(
-            self,
-            student_email: str,
-            db: AsyncSession
+            self, student_email: str, db: AsyncSession
     ) -> Optional[Student]:
         """
         Получить студента по email вместе с его группами и элективами.
@@ -75,10 +69,7 @@ class ORMStudentService(IStudentService):
 
     @db_session
     async def get_all_student_group_elective_email(
-            self,
-            db: AsyncSession,
-            start: int,
-            limit: int
+            self, db: AsyncSession, start: int, limit: int
     ) -> List[Student]:
         """
         Получить список студентов с пагинацией без загрузки связанных сущностей.
@@ -91,11 +82,7 @@ class ORMStudentService(IStudentService):
         Returns:
             List[Student]: Список объектов Student (может быть пустым).
         """
-        query = (
-            select(Student)
-            .offset(start)
-            .limit(limit)
-        )
+        query = select(Student).offset(start).limit(limit)
         result = await db.execute(query)
         students_list = result.unique().scalars().all()
         students: List[Student] = list(students_list)
@@ -179,13 +166,15 @@ class ORMStudentService(IStudentService):
         return sorted(recommendations, key=lambda x: x["percent"], reverse=True)[:5]
 
     @db_session
-    async def get_student_groups_for_elective(self, student_id: int, elective_id: int, db: AsyncSession) -> list[Group]:
+    async def get_student_groups_for_elective(
+            self, student_id: int, elective_id: int, db: AsyncSession
+    ) -> list[Group]:
         query = (
             select(Group)
             .join(student_group)
             .where(
                 student_group.c.student_id == student_id,
-                Group.elective_id == elective_id
+                Group.elective_id == elective_id,
             )
         )
         result = await db.execute(query)
@@ -194,16 +183,14 @@ class ORMStudentService(IStudentService):
 
     @db_session
     async def get_student_recommendation(
-            self,
-            student_id: int,
-            db: AsyncSession,
-            top_k: int = 5
+            self, student_id: int, db: AsyncSession, top_k: int = 5
     ):
         """
         Получить рекомендации для студента по ID с помощью ONNX-модели,
         используя лени­вую инициализацию code2idx, prof2idx и onnx_sess.
         """
         import numpy as np
+
         global code2idx, prof2idx, onnx_sess
 
         # Lazy initialization of code2idx, prof2idx, and onnx_sess
@@ -217,7 +204,9 @@ class ORMStudentService(IStudentService):
             prof2idx.clear()
             code2idx.update({c: i for i, c in enumerate(code_list)})
             prof2idx.update({p: i for i, p in enumerate(profile_list)})
-            onnx_sess = ort.InferenceSession(str(base / "student_tower.onnx"), providers=["CPUExecutionProvider"])
+            onnx_sess = ort.InferenceSession(
+                str(base / "student_tower.onnx"), providers=["CPUExecutionProvider"]
+            )
 
         # 1. Проверяем, что студент существует
         student = await db.get(Student, student_id)
@@ -225,12 +214,17 @@ class ORMStudentService(IStudentService):
             log.warning(f"Student with id={student_id} not found")
             return None
 
-
         # 2. Формируем числовые признаки студента
-        num_feats = np.hstack([
-            np.array(list(student.competencies.values()), dtype=np.float32),
-            np.array(list(student.diagnostics.values()), dtype=np.float32)
-        ]).reshape(1, -1).astype(np.float32)
+        num_feats = (
+            np.hstack(
+                [
+                    np.array(list(student.competencies.values()), dtype=np.float32),
+                    np.array(list(student.diagnostics.values()), dtype=np.float32),
+                ]
+            )
+            .reshape(1, -1)
+            .astype(np.float32)
+        )
 
         # 3. Получаем индексы code_idx и prof_idx из кэша
         code_idx_val = code2idx.get(student.sp_code)
@@ -245,12 +239,14 @@ class ORMStudentService(IStudentService):
         inputs = {
             onnx_sess.get_inputs()[0].name: num_feats,
             onnx_sess.get_inputs()[1].name: code_idx,
-            onnx_sess.get_inputs()[2].name: prof_idx
+            onnx_sess.get_inputs()[2].name: prof_idx,
         }
         student_embed = onnx_sess.run(None, inputs)[0]  # shape=(1, D)
 
         # 5. Загружаем все элективы с непустым text_embed
-        res_els = await db.execute(select(Elective).where(Elective.text_embed.isnot(None)))
+        res_els = await db.execute(
+            select(Elective).where(Elective.text_embed.isnot(None))
+        )
         electives = res_els.scalars().all()
         if not electives:
             return {"student_id": student_id, "recommendations": []}
@@ -268,7 +264,6 @@ class ORMStudentService(IStudentService):
         topk_idx = np.argsort(sims)[::-1][:top_k]
         top_item_ids = [item_ids[i] for i in topk_idx]
 
-
         # Получаем полные объекты элективов по top_item_ids
         rec_electives_result = await db.execute(
             select(Elective).where(Elective.id.in_(top_item_ids))
@@ -281,7 +276,9 @@ class ORMStudentService(IStudentService):
         for e in rec_electives:
             # Загружаем группы по элективу с joinedload студентов
             res_groups = await db.execute(
-                select(Group).where(Group.elective_id == e.id).options(joinedload(Group.students))
+                select(Group)
+                .where(Group.elective_id == e.id)
+                .options(joinedload(Group.students))
             )
             groups = res_groups.unique().scalars().all()
 
@@ -293,7 +290,9 @@ class ORMStudentService(IStudentService):
             # Для каждого типа суммируем все свободные места
             free_spots_per_type = []
             for type_groups in type_to_groups.values():
-                total_free_in_type = sum(g.capacity - len(g.students) for g in type_groups)
+                total_free_in_type = sum(
+                    g.capacity - len(g.students) for g in type_groups
+                )
                 free_spots_per_type.append(total_free_in_type)
 
             # Общее количество мест = минимальное из доступных по типам
@@ -309,7 +308,4 @@ class ORMStudentService(IStudentService):
                 }
             )
 
-        return {
-            "student_id": student_id,
-            "recommendations": recommendations
-        }
+        return {"student_id": student_id, "recommendations": recommendations}

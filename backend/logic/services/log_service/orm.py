@@ -2,20 +2,19 @@ import asyncio
 import logging
 
 from sqlalchemy import select
-from backend.database.database import db_session
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from backend.database.database import db_session
 from backend.database.models.log import Log
 
 
 class ORMLogService:
     @db_session
-    async def add_log(self, level: str, message: str, source: str, db: AsyncSession) -> Log:
+    async def add_log(
+            self, level: str, message: str, source: str, db: AsyncSession
+    ) -> Log:
         """Добавляет новую запись в лог"""
-        log = Log(
-            level=level,
-            message=message,
-            source=source
-        )
+        log = Log(level=level, message=message, source=source)
         db.add(log)
         await db.commit()
         await db.refresh(log)
@@ -25,16 +24,14 @@ class ORMLogService:
     @db_session
     async def get_logs(self, limit: int, db: AsyncSession) -> list[Log]:
         """Получает последние логи"""
-        query = (
-            select(Log)
-            .order_by(Log.timestamp.desc())
-            .limit(limit)
-        )
+        query = select(Log).order_by(Log.timestamp.desc()).limit(limit)
         result = await db.execute(query)
         return list(result.scalars().all())
 
     @db_session
-    async def get_logs_by_level(self, level: str, limit: int, db: AsyncSession) -> list[Log]:
+    async def get_logs_by_level(
+            self, level: str, limit: int, db: AsyncSession
+    ) -> list[Log]:
         """Получает логи определенного уровня"""
         query = (
             select(Log)
@@ -46,7 +43,9 @@ class ORMLogService:
         return list(result.scalars().all())
 
     @db_session
-    async def get_logs_by_source(self, source: str, limit: int, db: AsyncSession) -> list[Log]:
+    async def get_logs_by_source(
+            self, source: str, limit: int, db: AsyncSession
+    ) -> list[Log]:
         """Получает логи определенного источника"""
         query = (
             select(Log)

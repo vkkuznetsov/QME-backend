@@ -5,5 +5,4 @@ from dataclasses import dataclass
 @dataclass
 class IHealthCheckService(ABC):
     @abstractmethod
-    async def check(self):
-        ...
+    async def check(self): ...

@@ -3,12 +3,15 @@ from typing import Dict
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
-from backend.logic.services.healthcheck.alchemy import PostgresHealthcheckService, RedisHealthcheckService
+from backend.logic.services.healthcheck.alchemy import (
+    PostgresHealthcheckService,
+    RedisHealthcheckService,
+)
 
-router = APIRouter(prefix='/health', tags=['healthcheks'])
+router = APIRouter(prefix="/health", tags=["healthcheks"])
 
 
-@router.get('/all_connection')
+@router.get("/all_connection")
 async def all_healthcheck() -> JSONResponse:
     services = [
         PostgresHealthcheckService().check,
@@ -22,13 +25,13 @@ async def all_healthcheck() -> JSONResponse:
     return JSONResponse(content=results)
 
 
-@router.get('/database', response_model=Dict[str, bool])
+@router.get("/database", response_model=Dict[str, bool])
 async def database_healthcheck() -> Dict[str, bool]:
     response_data = await PostgresHealthcheckService().check()
     return response_data
 
 
-@router.get('/redis', response_model=Dict[str, bool])
+@router.get("/redis", response_model=Dict[str, bool])
 async def redis_healthcheck() -> Dict[str, bool]:
     response_data = await RedisHealthcheckService().check()
     return response_data

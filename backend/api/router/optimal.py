@@ -9,10 +9,10 @@ from backend.optimization.ilp_method import ILPSolver
 
 log = getLogger(__name__)
 
-router = APIRouter(tags=['optimal'])
+router = APIRouter(tags=["optimal"])
 
 
-@router.get('/optimal')
+@router.get("/optimal")
 async def optimize():
     transfer_service = ORMTransferService()
     data_getter = DataGetter
@@ -22,5 +22,5 @@ async def optimize():
     all_transfers = await transfer_service.get_all_transfers()
     return {
         "transfers": all_transfers,
-        "recommended_transfers": recommended_transfer_ids
+        "recommended_transfers": recommended_transfer_ids,
     }

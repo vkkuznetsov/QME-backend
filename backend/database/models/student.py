@@ -9,7 +9,7 @@ from backend.database.models.group import Group
 
 
 class Student(Base):
-    __tablename__ = 'student'
+    __tablename__ = "student"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     fio: Mapped[str]
@@ -19,37 +19,30 @@ class Student(Base):
     potok: Mapped[str]
 
     competencies: Mapped[list[float]] = mapped_column(
-        JSONB,
-        nullable=True,
-        comment="h1–h8 в предсказуемом порядке"
+        JSONB, nullable=True, comment="h1–h8 в предсказуемом порядке"
     )
 
     diagnostics: Mapped[dict] = mapped_column(
-        JSONB,
-        nullable=True,
-        comment="три балла из листа «Контингент»"
+        JSONB, nullable=True, comment="три балла из листа «Контингент»"
     )
 
     groups: Mapped[List["Group"]] = relationship(
-        "Group",
-        back_populates="students",
-        secondary="student_group"
+        "Group", back_populates="students", secondary="student_group"
     )
     transfers: Mapped[List["Transfer"]] = relationship(
-        "Transfer",
-        back_populates="student"
+        "Transfer", back_populates="student"
     )
 
     def __str__(self):
-        return f'{self.id} - {self.fio} - {self.email}'
+        return f"{self.id} - {self.fio} - {self.email}"
 
     def __repr__(self):
         return self.__str__()
 
 
 student_group = Table(
-    'student_group',
+    "student_group",
     Base.metadata,
-    Column('student_id', Integer, ForeignKey('student.id'), primary_key=True),
-    Column('group_id', Integer, ForeignKey('group.id'), primary_key=True),
+    Column("student_id", Integer, ForeignKey("student.id"), primary_key=True),
+    Column("group_id", Integer, ForeignKey("group.id"), primary_key=True),
 )
