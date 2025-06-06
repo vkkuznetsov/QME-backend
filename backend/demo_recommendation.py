@@ -111,7 +111,7 @@ async def load_tensors(db: AsyncSession):
     logging.info(f"Users : {X_users.shape}  | "
                  f"Items : {X_items.shape}  | "
                  f"Pairs : {pairs.shape}")
-    return X_users, X_items, pairs, codes, profiles
+    return X_users, X_items, pairs, codes, profiles, {"mu": mu.tolist(), "sigma": sigma.tolist()}
 
 # ───────────────────────────────────────────────────────────────────────────────
 # 3. DATASET
@@ -305,23 +305,51 @@ def train(args, X_users, X_items, pairs):
         f"mrr@10={mrr10:.3f}, "
         f"ndcg@10={ndcg10:.3f}"
     )
-    return stu.cpu()
+    return stu.cpu(), itm.cpu()
 
 # ───────────────────────────────────────────────────────────────────────────────
 # 7. ЭКСПОРТ
 # ───────────────────────────────────────────────────────────────────────────────
-def export_onnx(stu: StudentTower, codes: list[str], profiles: list[str]):
+def export_onnx(stu: StudentTower, itm: ItemTower, codes: list[str], profiles: list[str], num_stats: dict):
     path = Path("student_tower.onnx")
     dummy_num  = torch.zeros(1, 10, dtype=torch.float32)
     dummy_code = torch.zeros(1, dtype=torch.int64)
     dummy_prof = torch.zeros(1, dtype=torch.int64)
-    torch.onnx.export(stu,
-                      (dummy_num, dummy_code, dummy_prof),
-                      path,
-                      input_names=["num", "code", "prof"],
-                      output_names=["embed"],
-                      opset_version=17)
+    torch.onnx.export(
+        stu,
+        (dummy_num, dummy_code, dummy_prof),
+        path,
+        input_names=["num", "code", "prof"],
+        output_names=["embed"],
+        dynamic_axes={
+            "num":  {0: "batch_size"},
+            "code": {0: "batch_size"},
+            "prof": {0: "batch_size"},
+            "embed": {0: "batch_size"},
+        },
+        opset_version=17,
+    )
     logging.info(f"ONNX-модель сохранена: {path.resolve()}")
+    # ─ item tower ─
+    path_itm = Path("item_tower.onnx")
+    dummy_vec = torch.zeros(1, 384, dtype=torch.float32)
+    torch.onnx.export(
+        itm,
+        (dummy_vec,),
+        path_itm,
+        input_names=["text_embed"],
+        output_names=["embed"],
+        dynamic_axes={
+            "text_embed": {0: "batch_size"},
+            "embed":      {0: "batch_size"},
+        },
+        opset_version=17,
+    )
+    logging.info(f"ONNX ItemTower сохранён: {path_itm.resolve()}")
+    # ─ stats ─
+    (path.parent / "num_stats.json").write_text(
+        json.dumps(num_stats, ensure_ascii=False), encoding="utf-8")
+    logging.info("num_stats.json сохранён.")
     # Сохраняем JSON-лексикон кодов и профилей
     (path.parent / "code_list.json").write_text(json.dumps(codes, ensure_ascii=False), encoding="utf-8")
     (path.parent / "profile_list.json").write_text(json.dumps(profiles, ensure_ascii=False), encoding="utf-8")
@@ -335,9 +363,9 @@ async def async_main():
     logging.basicConfig(level=logging.INFO,
                         format="%(levelname)s: %(message)s")
 
-    X_users, X_items, pairs, codes, profiles = await load_tensors()
-    stu_best = train(args, X_users, X_items, pairs)
-    export_onnx(stu_best, codes, profiles)
+    X_users, X_items, pairs, codes, profiles, num_stats = await load_tensors()
+    stu_best, itm_best = train(args, X_users, X_items, pairs)
+    export_onnx(stu_best, itm_best, codes, profiles, num_stats)
 
 if __name__ == "__main__":
     asyncio.run(async_main())

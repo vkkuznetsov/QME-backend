@@ -21,6 +21,9 @@ log = getLogger(__name__)
 code2idx = {}
 prof2idx = {}
 onnx_sess = None
+item_sess = None
+mu_vec = None
+sigma_vec = None
 
 
 class ORMStudentService(IStudentService):
@@ -183,7 +186,7 @@ class ORMStudentService(IStudentService):
 
     @db_session
     async def get_student_recommendation(
-            self, student_id: int, db: AsyncSession, top_k: int = 5
+            self, student_id: int, db: AsyncSession, top_k: int = 10
     ):
         """
         Получить рекомендации для студента по ID с помощью ONNX-модели,
@@ -191,7 +194,7 @@ class ORMStudentService(IStudentService):
         """
         import numpy as np
 
-        global code2idx, prof2idx, onnx_sess
+        global code2idx, prof2idx, onnx_sess, item_sess, mu_vec, sigma_vec
 
         # Lazy initialization of code2idx, prof2idx, and onnx_sess
         if not code2idx or not prof2idx or onnx_sess is None:
@@ -207,6 +210,11 @@ class ORMStudentService(IStudentService):
             onnx_sess = ort.InferenceSession(
                 str(base / "student_tower.onnx"), providers=["CPUExecutionProvider"]
             )
+            item_sess = ort.InferenceSession(str(base / "item_tower.onnx"),
+                                             providers=["CPUExecutionProvider"])
+            stats = json.loads((base / "num_stats.json").read_text(encoding="utf-8"))
+            mu_vec = np.array(stats["mu"], dtype=np.float32).reshape(1, -1)
+            sigma_vec = np.array(stats["sigma"], dtype=np.float32).reshape(1, -1) + 1e-9
 
         # 1. Проверяем, что студент существует
         student = await db.get(Student, student_id)
@@ -215,16 +223,11 @@ class ORMStudentService(IStudentService):
             return None
 
         # 2. Формируем числовые признаки студента
-        num_feats = (
-            np.hstack(
-                [
-                    np.array(list(student.competencies.values()), dtype=np.float32),
-                    np.array(list(student.diagnostics.values()), dtype=np.float32),
-                ]
-            )
-            .reshape(1, -1)
-            .astype(np.float32)
-        )
+        num_feats = np.hstack([
+            np.array(list(student.competencies.values()), dtype=np.float32),
+            np.array(list(student.diagnostics.values()), dtype=np.float32)
+        ]).reshape(1, -1)
+        num_feats = (num_feats - mu_vec) / sigma_vec
 
         # 3. Получаем индексы code_idx и prof_idx из кэша
         code_idx_val = code2idx.get(student.sp_code)
@@ -251,16 +254,16 @@ class ORMStudentService(IStudentService):
         if not electives:
             return {"student_id": student_id, "recommendations": []}
 
-        # 6. Формируем матрицу эмбеддингов элективов и список ID
-        item_embeds = []
-        item_ids = []
+        # 6-7. Формируем матрицу эмбеддингов элективов, применяем item_sess и вычисляем сходство
+        item_embeds_raw, item_ids = [], []
         for e in electives:
-            item_embeds.append(np.array(e.text_embed, dtype=np.float32))
+            item_embeds_raw.append(np.array(e.text_embed, dtype=np.float32))
             item_ids.append(e.id)
-        X_items = np.vstack(item_embeds)  # shape=(N_items, D)
-
-        # 7. Вычисляем сходство и возвращаем top_k рекомендаций
-        sims = (student_embed @ X_items.T).flatten()  # shape=(N_items,)
+        X_items_raw = np.vstack(item_embeds_raw).astype(np.float32)
+        item_embeds = item_sess.run(
+            None, {item_sess.get_inputs()[0].name: X_items_raw}
+        )[0]
+        sims = (student_embed @ item_embeds.T).flatten()
         topk_idx = np.argsort(sims)[::-1][:top_k]
         top_item_ids = [item_ids[i] for i in topk_idx]
 
@@ -272,8 +275,11 @@ class ORMStudentService(IStudentService):
 
         from collections import defaultdict
 
+        id2elective = {e.id: e for e in rec_electives}
+
         recommendations = []
-        for e in rec_electives:
+        for eid in top_item_ids:
+            e = id2elective[eid]
             # Загружаем группы по элективу с joinedload студентов
             res_groups = await db.execute(
                 select(Group)
