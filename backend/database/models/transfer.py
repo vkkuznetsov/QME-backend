@@ -34,6 +34,7 @@ class Transfer(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     student_id: Mapped[int] = mapped_column(ForeignKey('student.id'), nullable=False)
+    manager_id: Mapped[int | None] = mapped_column(ForeignKey('manager.id'), nullable=True)
 
     from_elective_id: Mapped[int] = mapped_column(ForeignKey('elective.id'), nullable=False)
     to_elective_id: Mapped[int] = mapped_column(ForeignKey('elective.id'), nullable=False)
@@ -41,9 +42,11 @@ class Transfer(Base):
     status: Mapped[TransferStatus] = mapped_column(SAEnum(TransferStatus), default=TransferStatus.pending)
     priority: Mapped[int] = mapped_column(Integer, default=1)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 
     # Отношения
     student: Mapped['Student'] = relationship('Student', back_populates='transfers')
+    manager: Mapped['Manager'] = relationship('Manager', back_populates='transfers')
 
     from_elective: Mapped['Elective'] = relationship('Elective', foreign_keys=[from_elective_id])
     to_elective: Mapped['Elective'] = relationship('Elective', foreign_keys=[to_elective_id])

@@ -1,9 +1,9 @@
 from datetime import datetime
-
 from backend.database.database import Base
-from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy import DateTime, Enum
+
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
+from sqlalchemy.dialects.postgresql import TIMESTAMP
 
 
 class Manager(Base):
@@ -15,7 +15,13 @@ class Manager(Base):
    
     email: Mapped[str] = mapped_column(nullable=False)
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True),
+        server_default=func.now(),
+        nullable=False
+    )
+
+    transfers = relationship("Transfer", back_populates="manager")
 
     def __str__(self):
         return f'{self.id} - {self.created_at}'

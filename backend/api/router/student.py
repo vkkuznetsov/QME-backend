@@ -2,8 +2,8 @@ from logging import getLogger
 
 from fastapi import APIRouter, Depends
 
-from backend.logic.services.student_service.orm import ORMStudentService
 from backend.api.deps.limit_deps import Pagination
+from backend.logic.services.student_service.orm import ORMStudentService
 
 log = getLogger(__name__)
 

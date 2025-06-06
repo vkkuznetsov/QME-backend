@@ -12,8 +12,10 @@ from logging import getLogger
 
 from backend.logic.services.transfer_service.schemas import TransferReorder
 from backend.logic.services.zexceptions.orm import AlreadyExistsTransfer
+from backend.logic.services.log_service.orm import DatabaseLogger
 
 logger = getLogger(__name__)
+log = DatabaseLogger(__name__)
 
 
 class ORMTransferService(ITransferService):
@@ -102,33 +104,40 @@ class ORMTransferService(ITransferService):
                               groups_from_ids: list[int],
                               groups_to_ids: list[int],
                               db: AsyncSession):
+        try:
+            if await self._check_existing_transfer(
+                    db=db,
+                    student_id=student_id,
+                    groups_from_ids=groups_from_ids,
+                    groups_to_ids=groups_to_ids,
+                    from_elective_id=from_elective_id,
+                    to_elective_id=to_elective_id
+            ):
+                log.error(f"Заявка уже существует: студент {student_id}, с электива {from_elective_id} на {to_elective_id}")
+                raise AlreadyExistsTransfer(student_id, from_elective_id, to_elective_id)
 
-        if await self._check_existing_transfer(
+            priority = await self._calculate_priority(
+                db=db,
+                student_id=student_id,
+                from_elective_id=from_elective_id
+            )
+
+            transfer = await self._create_new_transfer(
                 db=db,
                 student_id=student_id,
                 groups_from_ids=groups_from_ids,
                 groups_to_ids=groups_to_ids,
                 from_elective_id=from_elective_id,
-                to_elective_id=to_elective_id
-        ):
-            logger.error(f"Заявка уже существует {student_id} {from_elective_id} {to_elective_id}")
-            raise AlreadyExistsTransfer(student_id, from_elective_id, to_elective_id)
-
-        priority = await self._calculate_priority(
-            db=db,
-            student_id=student_id,
-            from_elective_id=from_elective_id
-        )
-
-        return await self._create_new_transfer(
-            db=db,
-            student_id=student_id,
-            groups_from_ids=groups_from_ids,
-            groups_to_ids=groups_to_ids,
-            from_elective_id=from_elective_id,
-            to_elective_id=to_elective_id,
-            priority=priority
-        )
+                to_elective_id=to_elective_id,
+                priority=priority
+            )
+            
+            log.info(f"Создана новая заявка: ID={transfer.id}, студент={student_id}, с электива {from_elective_id} на {to_elective_id}")
+            return transfer
+            
+        except Exception as e:
+            log.error(f"Ошибка при создании заявки: {str(e)}")
+            raise
 
     @staticmethod
     async def _check_existing_transfer(db: AsyncSession, student_id: int,
@@ -226,7 +235,7 @@ class ORMTransferService(ITransferService):
         return
 
     @db_session
-    async def _change_transfer_status(self, transfer_id: int, status: TransferStatus, db: AsyncSession):
+    async def _change_transfer_status(self, transfer_id: int, status: TransferStatus, manager_id: int, db: AsyncSession):
         """
         Изменяет статус заявки на указанный.
         """
@@ -234,72 +243,86 @@ class ORMTransferService(ITransferService):
         if transfer is None:
             raise Exception(f"Transfer with id {transfer_id} не найден")
         transfer.status = status.value
+        transfer.manager_id = manager_id
         await db.commit()
         await db.refresh(transfer)
         return transfer
     
     @db_session
-    async def approve_transfer(self, transfer_id: int, db: AsyncSession):
+    async def approve_transfer(self, transfer_id: int, manager_id: int, db: AsyncSession):
         """
         Одобряет заявку на перевод, обновляя связи студента с группами.
         При одобрении заявки отклоняет все другие заявки этого студента с того же исходного электива.
         """
-        transfer = await db.get(Transfer, transfer_id)
-        student = await db.get(Student, transfer.student_id)
+        try:
+            transfer = await db.get(Transfer, transfer_id)
+            student = await db.get(Student, transfer.student_id)
 
-        # Отклоняем другие заявки с того же исходного электива
-        stmt = (
-            select(Transfer)
-            .where(
-                Transfer.student_id == student.id,
-                Transfer.from_elective_id == transfer.from_elective_id,
-                Transfer.id != transfer_id,
-                Transfer.status != TransferStatus.approved.value
-            )
-        )
-        other_transfers = (await db.execute(stmt)).scalars().all()
-        for other_transfer in other_transfers:
-            await self._change_transfer_status(other_transfer.id, TransferStatus.rejected)
-
-        # Удаляем старые связи студента с группами from_elective
-        stmt = delete(student_group).where(
-            student_group.c.group_id.in_(
-                select(transfer_group.c.group_id).where(
-                    transfer_group.c.transfer_id == transfer_id,
-                    transfer_group.c.group_role == GroupRole.FROM
+            # Отклоняем другие заявки с того же исходного электива
+            stmt = (
+                select(Transfer)
+                .where(
+                    Transfer.student_id == student.id,
+                    Transfer.from_elective_id == transfer.from_elective_id,
+                    Transfer.id != transfer_id,
+                    Transfer.status != TransferStatus.approved.value
                 )
-            ),
-            student_group.c.student_id == student.id
-        )
-        await db.execute(stmt)
-
-        # Добавляем новые связи студента с группами to_elective
-        stmt = (
-            select(Group)
-            .join(transfer_group)
-            .where(
-                transfer_group.c.transfer_id == transfer_id,
-                transfer_group.c.group_role == GroupRole.TO
             )
-        )
-        groups = (await db.execute(stmt)).scalars().all()
-        
-        for group in groups:
-            stmt = insert(student_group).values(
-                student_id=student.id,
-                group_id=group.id
+            other_transfers = (await db.execute(stmt)).scalars().all()
+            for other_transfer in other_transfers:
+                await self._change_transfer_status(other_transfer.id, TransferStatus.rejected, manager_id)
+                log.info(f"Отклонена заявка {other_transfer.id} при одобрении заявки {transfer_id}")
+
+            # Удаляем старые связи студента с группами from_elective
+            stmt = delete(student_group).where(
+                student_group.c.group_id.in_(
+                    select(transfer_group.c.group_id).where(
+                        transfer_group.c.transfer_id == transfer_id,
+                        transfer_group.c.group_role == GroupRole.FROM
+                    )
+                ),
+                student_group.c.student_id == student.id
             )
             await db.execute(stmt)
 
-        await self._change_transfer_status(transfer_id, TransferStatus.approved)
-        
-        await db.commit()
-        await db.refresh(student)
-        
-        return transfer
+            # Добавляем новые связи студента с группами to_elective
+            stmt = (
+                select(Group)
+                .join(transfer_group)
+                .where(
+                    transfer_group.c.transfer_id == transfer_id,
+                    transfer_group.c.group_role == GroupRole.TO
+                )
+            )
+            groups = (await db.execute(stmt)).scalars().all()
+            
+            for group in groups:
+                stmt = insert(student_group).values(
+                    student_id=student.id,
+                    group_id=group.id
+                )
+                await db.execute(stmt)
+
+            await self._change_transfer_status(transfer_id, TransferStatus.approved, manager_id)
+            log.info(f"Одобрена заявка {transfer_id}: студент {student.id} переведен с электива {transfer.from_elective_id} на {transfer.to_elective_id}")
+            
+            await db.commit()
+            await db.refresh(student)
+            
+            return transfer
+            
+        except Exception as e:
+            log.error(f"Ошибка при одобрении заявки {transfer_id}: {str(e)}")
+            raise
     
-    async def reject_transfer(self, transfer_id: int):
-        await self._change_transfer_status(transfer_id, TransferStatus.rejected)
+
+    async def reject_transfer(self, transfer_id: int, manager_id: int):
+        try:
+            await self._change_transfer_status(transfer_id, TransferStatus.rejected, manager_id)
+            log.info(f"Отклонена заявка {transfer_id}")
+        except Exception as e:
+            log.error(f"Ошибка при отклонении заявки {transfer_id}: {str(e)}")
+            raise
 
     @staticmethod
     @db_session

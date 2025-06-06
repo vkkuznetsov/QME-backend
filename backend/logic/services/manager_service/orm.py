@@ -1,8 +1,10 @@
-from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
+
 from sqlalchemy import select
-from backend.database.models.manager import Manager
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from backend.database.database import db_session
+from backend.database.models.manager import Manager
 
 
 class ManagerService:
