@@ -157,9 +157,16 @@ class ORMStudentService(IStudentService):
                     "topCourses": [
                         {
                             **course,
+                            "cluster": cluster,
                             "percent": round(
                                 (course["student_count"] / total_students) * 100, 1
                             ),
+                            "free_spots": (
+                                (await db.scalar(
+                                    select(func.sum(Group.capacity))
+                                    .where(Group.elective_id == course["id"])
+                                )) or 0
+                            ) - course["student_count"],
                         }
                         for course in sorted_courses
                     ],
@@ -186,7 +193,7 @@ class ORMStudentService(IStudentService):
 
     @db_session
     async def get_student_recommendation(
-            self, student_id: int, db: AsyncSession, top_k: int = 10
+            self, student_id: int, db: AsyncSession, top_k: int = 10 
     ):
         """
         Получить рекомендации для студента по ID с помощью ONNX-модели,
