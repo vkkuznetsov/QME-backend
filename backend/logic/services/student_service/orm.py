@@ -14,6 +14,7 @@ from backend.database.models.group import Group
 from backend.database.models.student import Student
 from backend.database.models.student import student_group
 from backend.logic.services.student_service.base import IStudentService
+from backend.database.models.transfer import Transfer
 
 log = getLogger(__name__)
 
@@ -274,6 +275,17 @@ class ORMStudentService(IStudentService):
         topk_idx = np.argsort(sims)[::-1][:top_k]
         top_item_ids = [item_ids[i] for i in topk_idx]
 
+        # подсчёт желающих (трансферов) для рекомендованных элективов
+        counts_res = await db.execute(
+            select(
+                Transfer.to_elective_id.label("eid"),
+                func.count(Transfer.id).label("transfer_count"),
+            )
+            .where(Transfer.to_elective_id.in_(top_item_ids))
+            .group_by(Transfer.to_elective_id)
+        )
+        transfer_counts = {row.eid: row.transfer_count for row in counts_res.all()}
+
         # Получаем полные объекты элективов по top_item_ids
         rec_electives_result = await db.execute(
             select(Elective).where(Elective.id.in_(top_item_ids))
@@ -318,6 +330,7 @@ class ORMStudentService(IStudentService):
                     "description": e.description,
                     "cluster": e.cluster,
                     "free_spots": total_free_spots,
+                    "transfer_count": transfer_counts.get(e.id, 0),
                 }
             )
 

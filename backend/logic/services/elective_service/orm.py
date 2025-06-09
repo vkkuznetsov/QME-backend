@@ -52,13 +52,27 @@ class ORMElectiveService:
             .subquery()
         )
 
+        transfer_count_subq = (
+            select(
+                Transfer.to_elective_id.label("elective_id"),
+                func.count(Transfer.id).label("transfer_count"),
+            )
+            .group_by(Transfer.to_elective_id)
+            .subquery()
+        )
+
         # основной запрос по элективам
         electives_stmt = (
             select(
                 Elective,
                 func.coalesce(min_free_subq.c.total_free, 0).label("free_spots"),
+                func.coalesce(transfer_count_subq.c.transfer_count, 0).label("transfer_count"),
             )
             .outerjoin(min_free_subq, min_free_subq.c.elective_id == Elective.id)
+            .outerjoin(
+                transfer_count_subq,
+                transfer_count_subq.c.elective_id == Elective.id
+            )
             .options(
                 # загружаем только группы и преподавателей; студентов больше не нужны
                 selectinload(Elective.groups).selectinload(Group.teachers)
@@ -68,7 +82,7 @@ class ORMElectiveService:
         rows = (await db.execute(electives_stmt)).unique().all()
 
         result: list[dict] = []
-        for elective, free_spots in rows:
+        for elective, free_spots, transfer_count in rows:
             teachers = {t.fio for g in elective.groups for t in g.teachers if t.fio}
             days = {g.day for g in elective.groups if g.day}
 
@@ -78,6 +92,7 @@ class ORMElectiveService:
                     "name": elective.name,
                     "cluster": elective.cluster,
                     "free_spots": free_spots,
+                    "transfer_count": transfer_count,
                     "teachers": sorted(teachers),
                     "days": sorted(days),
                 }
