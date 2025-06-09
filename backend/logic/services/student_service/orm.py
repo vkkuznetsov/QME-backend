@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import List, Optional
 
 import onnxruntime as ort
-from sqlalchemy import select, func
+from sqlalchemy import select, func, exists
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
@@ -13,8 +13,8 @@ from backend.database.models.elective import Elective
 from backend.database.models.group import Group
 from backend.database.models.student import Student
 from backend.database.models.student import student_group
-from backend.logic.services.student_service.base import IStudentService
 from backend.database.models.transfer import Transfer
+from backend.logic.services.student_service.base import IStudentService
 
 log = getLogger(__name__)
 
@@ -194,7 +194,7 @@ class ORMStudentService(IStudentService):
 
     @db_session
     async def get_student_recommendation(
-            self, student_id: int, db: AsyncSession, top_k: int = 10 
+            self, student_id: int, db: AsyncSession, top_k: int = 10
     ):
         """
         Получить рекомендации для студента по ID с помощью ONNX-модели,
@@ -335,3 +335,38 @@ class ORMStudentService(IStudentService):
             )
 
         return {"student_id": student_id, "recommendations": recommendations}
+
+    @db_session
+    async def can_student_transfer(self, student_id: int, elective_id: int, db: AsyncSession):
+        has_transfer = await db.scalar(
+            select(
+                exists().where(
+                    Transfer.student_id == student_id,
+                    Transfer.to_elective_id == elective_id,
+                    Transfer.status == 'pending',
+                )
+            )
+        )
+        if has_transfer:
+            return {
+                "can_transfer": False,
+                "reason": "already_pending",
+                "message": "Заявка уже подана и ожидает рассмотрения."
+            }
+
+        is_enrolled = await db.scalar(
+            select(
+                exists().where(
+                    Group.elective_id == elective_id,
+                    Group.students.any(Student.id == student_id)
+                )
+            )
+        )
+        if is_enrolled:
+            return {
+                "can_transfer": False,
+                "reason": "already_enrolled",
+                "message": "Вы уже записаны на этот электив."
+            }
+
+        return {"can_transfer": True}

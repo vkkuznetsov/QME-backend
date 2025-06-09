@@ -20,10 +20,20 @@ async def get_student(email: str, student_service: ORMStudentService = Depends()
 
 @router.get("/students")
 async def get_students(
-    paging: Pagination = Depends(), student_service: ORMStudentService = Depends()
+        paging: Pagination = Depends(),
+        student_service: ORMStudentService = Depends()
 ):
     students = await student_service.get_all_student_group_elective_email(
         start=paging.start,
         limit=paging.limit,
     )
     return students
+
+
+@router.get("/students/{student_id}/electives/{elective_id}/can-transfer")
+async def check_can_student_transfer(
+        student_id: int,
+        elective_id: int,
+        student_service: ORMStudentService = Depends(),
+):
+    return await student_service.can_student_transfer(student_id, elective_id)

@@ -35,7 +35,7 @@ class ORMLogService:
         """Получает логи определенного уровня"""
         query = (
             select(Log)
-            .where(Log.level == level)
+            .where(Log.level == level.lower())
             .order_by(Log.timestamp.desc())
             .limit(limit)
         )

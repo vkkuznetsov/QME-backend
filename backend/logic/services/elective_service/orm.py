@@ -1,6 +1,6 @@
 from sqlalchemy import select, func, case
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload, selectinload
+from sqlalchemy.orm import joinedload, selectinload, with_loader_criteria
 
 from backend.database.database import db_session
 from backend.database.models.elective import Elective
@@ -119,6 +119,7 @@ class ORMElectiveService:
                 joinedload(Group.students),
                 joinedload(Group.transfers_to).joinedload(Transfer.student),
                 joinedload(Group.transfers_from).joinedload(Transfer.student),
+                with_loader_criteria(Transfer, lambda t: t.status == 'pending'),
             )
             .where(Group.elective_id == elective_id)
             .order_by(
