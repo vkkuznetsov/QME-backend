@@ -4,13 +4,14 @@ from pathlib import Path
 import pandas as pd
 from fastapi import UploadFile
 from sqlalchemy import select, update
+from sqlalchemy.orm import selectinload
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.config import PROJECT_PATH
 from backend.database.database import db_session, recreate_db
 from backend.database.models.elective import Elective
-from backend.database.models.group import Group
+from backend.database.models.group import Group, Teacher, group_teacher
 from backend.database.models.student import Student
 from backend.database.models.student import student_group
 from backend.logic.services.log_service.orm import DatabaseLogger
@@ -20,27 +21,16 @@ name = __name__
 log = DatabaseLogger(name)
 
 
-class ChooseFileParser:
-    def __init__(self, file: UploadFile, *, reset: bool = False):
+class AllFileParser:
+    def __init__(self, file: UploadFile):
         self.file = file
-        self.reset = reset
         self.raw_df = None
         self.filtered_df = None
 
     async def __call__(self):
-
-        if self.reset:
-            await self.reset_database()
-
+        await self.reset_database()
         await self.read_file()
-        await self.filter_na()
         await self.parse_data_frame()
-
-    async def read_file(self):
-        self.raw_df = pd.read_excel(self.file.file)
-
-    async def filter_na(self) -> None:
-        self.filtered_df = self.raw_df[self.raw_df['Дата и причина отчисления'].isna()]
 
     @staticmethod
     async def reset_database():
@@ -48,102 +38,127 @@ class ChooseFileParser:
         await recreate_db(saved_tables)
         log.info("База данных инициализирована.")
 
+    async def read_file(self):
+        excel_file = pd.ExcelFile(self.file.file)
+        self.students_df = excel_file.parse("result")
+        self.free_spots_df = excel_file.parse("Лист3")
+
     @time_log(name)
     @db_session
     async def parse_data_frame(self, db: AsyncSession):
-        await insert_student_and_electives(self.filtered_df, db, skip_existing_electives=not self.reset)
-        df_with_normal_groups, df_broken_groups = filter_groups_df(self.filtered_df)
-        await insert_groups(df_with_normal_groups, db)
+        await insert_student_and_electives(self.students_df, db)
+        await link_groups(self.students_df, db)
         await add_description_to_elective(db)
         await add_cluster(db)
+        await update_type_and_free_spots(self.free_spots_df, db)
 
 
 @time_log(name)
-async def insert_student_and_electives(students_without_expulsion: pd.DataFrame, session: AsyncSession, *,
-                                       skip_existing_electives: bool = False):
+async def insert_student_and_electives(students_without_expulsion: pd.DataFrame, session: AsyncSession):
     unique_students = students_without_expulsion.drop_duplicates(subset=['email']).to_dict(orient="records")
     unique_electives = students_without_expulsion.drop_duplicates(subset=['РМУП название']).to_dict(orient='records')
+    unique_groups = students_without_expulsion.drop_duplicates(subset=['Группа название']).to_dict(orient='records')
 
-    if skip_existing_electives:
-        existing_electives = await session.execute(select(Elective.name))
-        existing_elective_names = set(existing_electives.scalars().all())
-        unique_electives = [e for e in unique_electives if e['РМУП название'] not in existing_elective_names]
+    raw_teachers = students_without_expulsion['Сотрудники'].dropna().tolist()
+    teacher_names = set()
+    for entry in raw_teachers:
+        for name in str(entry).split(','):
+            clean_name = name.strip()
+            if clean_name:
+                teacher_names.add(clean_name)
+
+    teacher_objects = [Teacher(fio=name) for name in teacher_names]
 
     student_objects = [
         Student(
-            fio=student['Студент ФИО'],
+            fio=student['Студент'],
             email=student['email'],
-            sp_code=student['Код специальности'],
-            sp_profile=student['Профиль спецальности'],
-            potok=student['Поток обучения']
+            sp_code=student['Специальность'],
+            sp_profile=student['Профиль'],
+            potok=student['Поток']
         )
         for student in unique_students
     ]
-
     elective_objects = [
         Elective(name=elective['РМУП название'])
-        for elective in unique_electives if elective['РМУП название'] != "Возможно не участвовал в выборе"
+        for elective in unique_electives
     ]
-
+    groups_objects = [
+        Group(
+            name=group['Группа название'],
+            time_interval=None if pd.isna(group['Время проведения']) else group['Время проведения'],
+            day=None if pd.isna(group['День недели']) else group['День недели']
+        )
+        for group in unique_groups
+    ]
     session.add_all(student_objects)
     session.add_all(elective_objects)
+    session.add_all(groups_objects)
+    session.add_all(teacher_objects)
 
     await session.commit()
+    log.error('закончили первую часть')
 
 
 @time_log(name)
-async def insert_groups(students_without_expulsion: pd.DataFrame, session: AsyncSession):
+async def link_groups(students_without_expulsion: pd.DataFrame, session: AsyncSession):
+    # Загружаем объекты
     student_result = await session.execute(select(Student))
     student_dict = {s.email: s for s in student_result.scalars()}
 
     elective_result = await session.execute(select(Elective))
     elective_dict = {e.name: e for e in elective_result.scalars()}
 
-    # Извлекаем уже существующие группы из базы перед началом обработки строк
     group_result = await session.execute(select(Group))
-    existing_groups = {(g.name, g.elective_id): g for g in group_result.scalars()}
+    group_dict = {g.name: g for g in group_result.scalars()}
 
-    gr_set = {}
-    new_groups = []
+    teacher_result = await session.execute(select(Teacher))
+    teacher_dict = {t.fio: t for t in teacher_result.scalars()}
+
     student_group_links = []
-    group_id_counter = 1
+    groups_to_update = []
+    group_teacher_links = []
 
     for _, row in students_without_expulsion.iterrows():
         student_email = row['email']
         elective_name = row['РМУП название']
-        group_type = row['group_type']
-        group_name = row['group_name']
+        group_name = row['Группа название']
+        teacher_field = row.get('Сотрудники')
 
         student = student_dict.get(student_email)
         elective = elective_dict.get(elective_name)
+        group = group_dict.get(group_name)
 
-        key = (group_name, elective.id)
-        if key not in existing_groups and group_name not in gr_set:
-            group = Group(name=group_name, type=group_type, capacity=30, elective=elective)
-            new_groups.append(group)
-            gr_set[group_name] = group_id_counter
-            group_id_counter += 1
+        # Связываем студента с группой
+        if student and group:
+            student_group_links.append({
+                "student_id": student.id,
+                "group_id": group.id
+            })
 
-    session.add_all(new_groups)
-    await session.flush()
+        # Устанавливаем elective_id
+        if group and elective and group.elective_id is None:
+            group.elective_id = elective.id
+            groups_to_update.append(group)
 
-    # Обновляем existing_groups после вставки новых групп
-    group_result = await session.execute(select(Group))
-    existing_groups = {(g.name, g.elective_id): g for g in group_result.scalars()}
+        # Привязываем преподавателей к группе
+        if group and pd.notna(teacher_field):
+            for name in str(teacher_field).split(','):
+                fio = name.strip()
+                teacher = teacher_dict.get(fio)
+                if teacher:
+                    group_teacher_links.append({
+                        "group_id": group.id,
+                        "teacher_id": teacher.id
+                    })
 
-    for _, row in students_without_expulsion.iterrows():
-        student_email = row['email']
-        elective_name = row['РМУП название']
-        group_name = row['group_name']
-        student = student_dict.get(student_email)
-        elective = elective_dict.get(elective_name)
-        group = existing_groups.get((group_name, elective.id))
-        if group:
-            student_group_links.append({"student_id": student.id, "group_id": group.id})
+    session.add_all(groups_to_update)
 
-    if student_group_links:
-        stmt = insert(student_group).values(student_group_links).on_conflict_do_nothing()
-        await session.execute(stmt)
+    stmt_students = insert(student_group).values(student_group_links).on_conflict_do_nothing()
+    await session.execute(stmt_students)
+
+    stmt_teachers = insert(group_teacher).values(group_teacher_links).on_conflict_do_nothing()
+    await session.execute(stmt_teachers)
 
     await session.commit()
 
@@ -227,20 +242,32 @@ async def add_cluster(db: AsyncSession):
 
 
 @time_log(name)
-def filter_groups_df(filtered_df: pd.DataFrame):
-    group_columns = ['Лекции', 'Практики', 'Лабораторные', 'Консультации']
-    df = filtered_df.copy()
-    temp = df[group_columns]
+async def update_type_and_free_spots(df: pd.DataFrame, session: AsyncSession):
+    # Загружаем уже созданные группы с отношением к студентам
+    group_result = await session.execute(select(Group).options(selectinload(Group.students)))
+    group_dict = {g.name: g for g in group_result.scalars()}
 
-    mask = temp.notna()
+    for _, row in df.iterrows():
+        group_name = row['Группа название']
+        group = group_dict.get(group_name)
 
-    df['group_type'] = mask.idxmax(axis=1)
-    df['group_type'] = df['group_type'].where(mask.any(axis=1), None)
+        if group:
+            if pd.notna(row['Л']):
+                group_type = "Лекции"
+                free_spots = int(row['Л'])
+            elif pd.notna(row['ЛБ']):
+                group_type = "Лабораторные"
+                free_spots = int(row['ЛБ'])
+            elif pd.notna(row['П']):
+                group_type = "Практики"
+                free_spots = int(row['П'])
+            else:
+                continue  # Если все три поля пустые — пропускаем
 
-    df['group_name'] = temp.bfill(axis=1).iloc[:, 0]
-    df['group_name'] = df['group_name'].where(mask.any(axis=1), None)
+            group.type = group_type
+            group.free_spots = free_spots
 
-    determined_df = df[df['group_type'].notna()].copy()
-    undetermined_df = df[df['group_type'].isna()].copy()
+            group.init_usage = len(group.students)
+            group.capacity = group.init_usage + group.free_spots
 
-    return determined_df, undetermined_df
+    await session.commit()

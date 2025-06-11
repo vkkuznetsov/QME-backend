@@ -12,8 +12,8 @@ import asyncio
 from typing import Optional
 
 from sentence_transformers import SentenceTransformer
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from sqlalchemy import select
 
 # импорт вашей модели

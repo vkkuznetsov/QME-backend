@@ -30,20 +30,20 @@ class Group(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     name: Mapped[str]
-    type: Mapped[str]
+    type: Mapped[str] = mapped_column(nullable=True)
 
     teachers: Mapped[List["Teacher"]] = relationship(
         "Teacher", secondary=group_teacher, back_populates="groups"
     )
 
-    capacity: Mapped[int]
+    capacity: Mapped[int] = mapped_column(nullable=True)
 
     day: Mapped[str] = mapped_column(nullable=True)
     time_interval: Mapped[str] = mapped_column(nullable=True)
     free_spots: Mapped[int] = mapped_column(nullable=True)
     init_usage: Mapped[int] = mapped_column(nullable=True)
 
-    elective_id: Mapped[int] = mapped_column(ForeignKey("elective.id"))
+    elective_id: Mapped[int] = mapped_column(ForeignKey("elective.id"), nullable=True)
     elective: Mapped["Elective"] = relationship(back_populates="groups")
 
     students: Mapped[List["Student"]] = relationship(

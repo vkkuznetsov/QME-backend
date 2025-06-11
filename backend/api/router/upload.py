@@ -3,6 +3,7 @@ from logging import getLogger
 from fastapi import APIRouter, File, UploadFile
 
 from backend.logic.services.journal_service.orm import JournalService
+from backend.logic.services.parsing_service.parser_all import AllFileParser
 from backend.parse_choose import ChooseFileParser
 from backend.parse_course import ElectiveFileParser
 from backend.parse_students import StudentsDataParser
@@ -26,10 +27,9 @@ async def handle_student_choices(file: UploadFile = File(...)):
     return {"filename": file.filename}
 
 
-# Endpoint to update Student.diagnostics and Student.competencies from uploaded Excel files
 @router.post("/update-students-data")
 async def update_students_data(
-    diagnostics_file: UploadFile = File(...), competencies_file: UploadFile = File(...)
+        diagnostics_file: UploadFile = File(...), competencies_file: UploadFile = File(...)
 ):
     parser = StudentsDataParser(diagnostics_file, competencies_file)
     await parser()
@@ -45,4 +45,11 @@ async def handle_courses_info(file: UploadFile = File(...)):
     await parser()
     await journal.add_record_upload_elective_success()
 
+    return {"filename": file.filename}
+
+
+@router.post("/all-upload")
+async def upload_all_file(file: UploadFile = File(...)):
+    parser = AllFileParser(file)
+    await parser()
     return {"filename": file.filename}
