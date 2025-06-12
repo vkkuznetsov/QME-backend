@@ -48,16 +48,6 @@ class ORMTransferService(ITransferService):
                 for group in transfer.groups_to
             ]
 
-            try:
-                ts = TransferStatus(transfer.status)
-            except ValueError:
-                ts = None
-
-            translated_status = {
-                TransferStatus.pending: "Ожидается",
-                TransferStatus.approved: "Одобрено",
-                TransferStatus.rejected: "Отклонено",
-            }.get(ts, "Неизвестный статус")
 
             result.append(
                 {
@@ -72,7 +62,7 @@ class ORMTransferService(ITransferService):
                     if transfer.to_elective
                     else "Неизвестный электив",
                     "selectedGroups": selected_groups,
-                    "status": translated_status,
+                    "status": transfer.status,
                     "priority": transfer.priority,
                 }
             )
@@ -385,3 +375,46 @@ class ORMTransferService(ITransferService):
             .where(Transfer.status == TransferStatus.pending.value)
         )
         return result.scalar_one()
+
+    @staticmethod
+    @db_session
+    async def lock_transfers(transfer_ids: List[int], db: AsyncSession) -> int:
+        result = await db.execute(select(Transfer).where(Transfer.id.in_(transfer_ids)))
+        transfers = result.scalars().all()
+
+        found_ids = {t.id for t in transfers}
+        missing = set(transfer_ids) - found_ids
+        if missing:
+            raise ORMTransferService.NotFoundError(f"Transfers not found: {missing}")
+
+        changed = 0
+        for tr in transfers:
+            if tr.status == TransferStatus.draft:
+                tr.status = TransferStatus.pending
+                changed += 1
+
+        if changed:
+            await db.commit()
+        return changed
+
+
+    @staticmethod
+    @db_session
+    async def unlock_transfers(transfer_ids: List[int], db: AsyncSession) -> int:
+        result = await db.execute(select(Transfer).where(Transfer.id.in_(transfer_ids)))
+        transfers = result.scalars().all()
+
+        found_ids = {t.id for t in transfers}
+        missing = set(transfer_ids) - found_ids
+        if missing:
+            raise ORMTransferService.NotFoundError(f"Transfers not found: {missing}")
+
+        changed = 0
+        for tr in transfers:
+            if tr.status == TransferStatus.pending:
+                tr.status = TransferStatus.draft
+                changed += 1
+
+        if changed:
+            await db.commit()
+        return changed

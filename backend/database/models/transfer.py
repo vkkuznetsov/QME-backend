@@ -18,6 +18,7 @@ from backend.database.database import Base
 
 
 class TransferStatus(str, Enum):
+    draft = "draft"
     pending = "pending"
     approved = "approved"
     rejected = "rejected"
@@ -59,7 +60,7 @@ class Transfer(Base):
     )
 
     status: Mapped[TransferStatus] = mapped_column(
-        SAEnum(TransferStatus), default=TransferStatus.pending
+        SAEnum(TransferStatus), default=TransferStatus.draft
     )
     priority: Mapped[int] = mapped_column(Integer, default=1)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

@@ -97,3 +97,33 @@ async def count_active_transfers(
 ) -> int:
     result = await transfer_service.count_active_transfer()
     return result
+
+from pydantic import BaseModel
+from typing import List
+
+class IdsList(BaseModel):
+    ids: List[int]
+
+
+@router.post("/transfer/lock")
+async def lock_transfers(
+    payload: IdsList,
+    transfer_service: ORMTransferService = Depends(),
+):
+    try:
+        updated_count = await transfer_service.lock_transfers(payload.ids)
+        return {"success": True, "updated": updated_count}
+    except ORMTransferService.NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/transfer/unlock")
+async def unlock_transfers(
+    payload: IdsList,
+    transfer_service: ORMTransferService = Depends(),
+):
+    try:
+        updated_count = await transfer_service.unlock_transfers(payload.ids)
+        return {"success": True, "updated": updated_count}
+    except ORMTransferService.NotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
